@@ -3,9 +3,9 @@ import Array "mo:core/Array";
 import Iter "mo:core/Iter";
 import Map "mo:core/Map";
 import Time "mo:core/Time";
-import Text "mo:core/Text";
 import Int "mo:core/Int";
 import Nat "mo:core/Nat";
+import Text "mo:core/Text";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 import MixinAuthorization "authorization/MixinAuthorization";
@@ -64,6 +64,39 @@ actor {
 
   public type AdminLevel = { #superAdmin; #subAdmin; #none };
 
+  // --- New Types For Settings ---
+  public type SiteSettings = {
+    siteName : Text;
+    logoUrl : Text;
+  };
+
+  public type PaymentSettings = {
+    bkash : Text;
+    nagad : Text;
+    rocket : Text;
+  };
+
+  public type Banner = {
+    id : Nat;
+    title : Text;
+    description : Text;
+    imageUrl : Text;
+    isActive : Bool;
+  };
+
+  public type BannerInput = {
+    title : Text;
+    description : Text;
+    imageUrl : Text;
+    isActive : Bool;
+  };
+
+  public type MemberInfo = {
+    principal : Principal;
+    profile : ?UserProfile;
+    adminLevel : AdminLevel;
+  };
+
   // ------ Storage ------
   let products = Map.empty<Nat, Product.Product>();
   let orders = Map.empty<Nat, Order.Order>();
@@ -71,11 +104,23 @@ actor {
   let rechargeRequests = Map.empty<Nat, RechargeRequest.Request>();
   let userProfiles = Map.empty<Principal, UserProfile>();
   let subAdmins = Map.empty<Principal, Bool>();
-
+  var siteSettings : SiteSettings = {
+    siteName = "Game Topup Shop";
+    logoUrl = "";
+  };
+  var paymentSettings : PaymentSettings = {
+    bkash = "01841956380";
+    nagad = "01841956380";
+    rocket = "01841956380";
+  };
   var nextProductId = 1;
   var nextOrderId = 1;
   var nextRechargeRequestId = 1;
   var announcement : Text = "";
+
+  // --- New Banners Store ---
+  let banners = Map.empty<Nat, Banner>();
+  var nextBannerId = 1;
 
   // Initialize the user system state
   let accessControlState = AccessControl.initState();
@@ -116,6 +161,27 @@ actor {
       case (?true) { #subAdmin };
       case (_) { #none };
     };
+  };
+
+  // ------ Get All Members (Super Admin Only) ------
+  public query ({ caller }) func getAllMembers() : async [MemberInfo] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only super admins can view all members");
+    };
+    let result = List.empty<MemberInfo>();
+    for ((principal, _) in accessControlState.userRoles.entries()) {
+      let profile = userProfiles.get(principal);
+      let adminLevel : AdminLevel = if (AccessControl.isAdmin(accessControlState, principal)) {
+        #superAdmin;
+      } else {
+        switch (subAdmins.get(principal)) {
+          case (?true) { #subAdmin };
+          case (_) { #none };
+        };
+      };
+      result.add({ principal; profile; adminLevel });
+    };
+    result.toArray();
   };
 
   // ------ User Profile Management ------
@@ -600,5 +666,83 @@ actor {
     ignore await addProduct(ff100Like);
     ignore await addProduct(mysteryBox);
     ignore await addProduct(luckyBonus);
+  };
+
+  // --- Site Settings ---
+  public query ({ caller }) func getSiteSettings() : async SiteSettings {
+    siteSettings;
+  };
+
+  public shared ({ caller }) func setSiteSettings(settings : SiteSettings) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Only admin can set site settings");
+    };
+    siteSettings := settings;
+  };
+
+  // --- Payment Settings ---
+  public query ({ caller }) func getPaymentSettings() : async PaymentSettings {
+    paymentSettings;
+  };
+
+  public shared ({ caller }) func setPaymentSettings(settings : PaymentSettings) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Only admin can set payment settings");
+    };
+    paymentSettings := settings;
+  };
+
+  // --- Banner Management ---
+  public query ({ caller }) func getBanners() : async [Banner] {
+    let iter = banners.values();
+    iter.toArray();
+  };
+
+  public shared ({ caller }) func addBanner(input : BannerInput) : async Nat {
+    if (not isAdminOrSubAdmin(caller)) {
+      Runtime.trap("Only admin or sub-admin can add banner");
+    };
+    let newBanner : Banner = {
+      id = nextBannerId;
+      title = input.title;
+      description = input.description;
+      imageUrl = input.imageUrl;
+      isActive = input.isActive;
+    };
+    banners.add(nextBannerId, newBanner);
+    nextBannerId += 1;
+    newBanner.id;
+  };
+
+  public shared ({ caller }) func updateBanner(
+    id : Nat,
+    input : BannerInput,
+  ) : async () {
+    if (not isAdminOrSubAdmin(caller)) {
+      Runtime.trap("Only admin or sub-admin can update banner");
+    };
+    switch (banners.get(id)) {
+      case (null) { Runtime.trap("Banner not found") };
+      case (?_) {
+        let updatedBanner : Banner = {
+          id;
+          title = input.title;
+          description = input.description;
+          imageUrl = input.imageUrl;
+          isActive = input.isActive;
+        };
+        banners.add(id, updatedBanner);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteBanner(id : Nat) : async () {
+    if (not isAdminOrSubAdmin(caller)) {
+      Runtime.trap("Only admin or sub-admin can delete banner");
+    };
+    if (not banners.containsKey(id)) {
+      Runtime.trap("Banner not found");
+    };
+    banners.remove(id);
   };
 };

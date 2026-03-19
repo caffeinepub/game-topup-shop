@@ -7,6 +7,7 @@ import AppHeader from "../components/AppHeader";
 import ProductCard from "../components/ProductCard";
 import {
   useAnnouncement,
+  useGetBanners,
   useInitializeSampleData,
   useProducts,
 } from "../hooks/useQueries";
@@ -24,9 +25,11 @@ export default function HomePage({
 }: HomePageProps) {
   const { data: products, isLoading } = useProducts();
   const { data: announcement } = useAnnouncement();
+  const { data: banners } = useGetBanners();
   const { mutateAsync: initData } = useInitializeSampleData();
 
   const [showBanner, setShowBanner] = useState(true);
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -36,7 +39,20 @@ export default function HomePage({
     }
   }, [products, initialized, initData]);
 
+  const activeBanners = banners?.filter((b) => b.isActive) ?? [];
+
+  // Auto-rotate banners
+  useEffect(() => {
+    if (activeBanners.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveBannerIndex((prev) => (prev + 1) % activeBanners.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [activeBanners.length]);
+
   const activeProducts = products?.filter((p) => p.isActive) ?? [];
+
+  const currentBanner = activeBanners[activeBannerIndex];
 
   return (
     <div data-ocid="home.page">
@@ -66,42 +82,95 @@ export default function HomePage({
         )}
       </AnimatePresence>
 
-      {/* Hero Banner */}
-      <div className="relative overflow-hidden" style={{ height: 180 }}>
-        <img
-          src="/assets/generated/hero-banner.dim_800x300.jpg"
-          alt="Game Topup Shop"
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent flex flex-col justify-center px-5">
-          <motion.div
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            <p className="text-orange-300 text-xs font-semibold tracking-widest uppercase mb-1">
-              দ্রুত ও নিরাপদ
-            </p>
-            <h1 className="text-white text-2xl font-black leading-tight">
-              Game Topup
-              <br />
-              <span className="text-orange-400">সবচেয়ে কম দামে</span>
-            </h1>
-            <button
-              type="button"
-              data-ocid="hero.primary_button"
-              className="mt-3 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-1.5 rounded-full flex items-center gap-1 transition-colors"
-              onClick={() =>
-                document
-                  .getElementById("products-section")
-                  ?.scrollIntoView({ behavior: "smooth" })
-              }
+      {/* Hero / Banner Section */}
+      {currentBanner ? (
+        <div className="relative overflow-hidden" style={{ height: 180 }}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentBanner.id.toString()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              className="absolute inset-0"
             >
-              এখনই অর্ডার করুন <ChevronRight size={14} />
-            </button>
-          </motion.div>
+              {currentBanner.imageUrl ? (
+                <img
+                  src={currentBanner.imageUrl}
+                  alt={currentBanner.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-r from-orange-600 to-orange-400" />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent flex flex-col justify-center px-5">
+                <p className="text-orange-300 text-xs font-semibold tracking-widest uppercase mb-1">
+                  দ্রুত ও নিরাপদ
+                </p>
+                <h1 className="text-white text-2xl font-black leading-tight">
+                  {currentBanner.title}
+                </h1>
+                {currentBanner.description && (
+                  <p className="text-white/80 text-xs mt-1">
+                    {currentBanner.description}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </AnimatePresence>
+          {/* Dots indicator */}
+          {activeBanners.length > 1 && (
+            <div className="absolute bottom-2 right-3 flex gap-1">
+              {activeBanners.map((b, i) => (
+                <button
+                  key={b.id.toString()}
+                  type="button"
+                  onClick={() => setActiveBannerIndex(i)}
+                  className={`w-1.5 h-1.5 rounded-full transition-all ${
+                    i === activeBannerIndex ? "bg-white w-3" : "bg-white/50"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      ) : (
+        <div className="relative overflow-hidden" style={{ height: 180 }}>
+          <img
+            src="/assets/generated/hero-banner.dim_800x300.jpg"
+            alt="Game Topup Shop"
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent flex flex-col justify-center px-5">
+            <motion.div
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              <p className="text-orange-300 text-xs font-semibold tracking-widest uppercase mb-1">
+                দ্রুত ও নিরাপদ
+              </p>
+              <h1 className="text-white text-2xl font-black leading-tight">
+                Game Topup
+                <br />
+                <span className="text-orange-400">সবচেয়ে কম দামে</span>
+              </h1>
+              <button
+                type="button"
+                data-ocid="hero.primary_button"
+                className="mt-3 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-1.5 rounded-full flex items-center gap-1 transition-colors"
+                onClick={() =>
+                  document
+                    .getElementById("products-section")
+                    ?.scrollIntoView({ behavior: "smooth" })
+                }
+              >
+                এখনই অর্ডার করুন <ChevronRight size={14} />
+              </button>
+            </motion.div>
+          </div>
+        </div>
+      )}
 
       {/* Products Section */}
       <div id="products-section" className="px-4 py-4">

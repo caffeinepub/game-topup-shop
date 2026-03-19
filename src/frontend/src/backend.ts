@@ -89,9 +89,6 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface UserProfile {
-    name: string;
-}
 export interface ProductInput {
     name: string;
     description: string;
@@ -100,16 +97,6 @@ export interface ProductInput {
     isFeatured: boolean;
     category: string;
     price: bigint;
-}
-export interface RechargeRequestInput {
-    paymentMethod: PaymentMethod;
-    amount: bigint;
-    transactionId: string;
-}
-export interface CreateOrderInput {
-    gameId: string;
-    productId: bigint;
-    quantity: bigint;
 }
 export interface OrderWithProduct {
     id: bigint;
@@ -122,6 +109,47 @@ export interface OrderWithProduct {
     totalPrice: bigint;
     product: Product;
 }
+export interface Request {
+    id: bigint;
+    status: RequestStatus;
+    paymentMethod: PaymentMethod;
+    createdAt: bigint;
+    user: Principal;
+    amount: bigint;
+    transactionId: string;
+}
+export interface PaymentSettings {
+    nagad: string;
+    bkash: string;
+    rocket: string;
+}
+export interface SiteSettings {
+    siteName: string;
+    logoUrl: string;
+}
+export interface RechargeRequestInput {
+    paymentMethod: PaymentMethod;
+    amount: bigint;
+    transactionId: string;
+}
+export interface Banner {
+    id: bigint;
+    title: string;
+    description: string;
+    isActive: boolean;
+    imageUrl: string;
+}
+export interface CreateOrderInput {
+    gameId: string;
+    productId: bigint;
+    quantity: bigint;
+}
+export interface BannerInput {
+    title: string;
+    description: string;
+    isActive: boolean;
+    imageUrl: string;
+}
 export interface Product {
     id: bigint;
     name: string;
@@ -132,14 +160,13 @@ export interface Product {
     category: string;
     price: bigint;
 }
-export interface Request {
-    id: bigint;
-    status: RequestStatus;
-    paymentMethod: PaymentMethod;
-    createdAt: bigint;
-    user: Principal;
-    amount: bigint;
-    transactionId: string;
+export interface UserProfile {
+    name: string;
+}
+export enum AdminLevel {
+    none = "none",
+    superAdmin = "superAdmin",
+    subAdmin = "subAdmin"
 }
 export enum OrderStatus {
     cancelled = "cancelled",
@@ -162,30 +189,29 @@ export enum UserRole {
     user = "user",
     guest = "guest"
 }
-export enum AdminLevel {
-    superAdmin = "superAdmin",
-    subAdmin = "subAdmin",
-    none = "none"
-}
 export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
+    addBanner(input: BannerInput): Promise<bigint>;
     addProduct(input: ProductInput): Promise<bigint>;
     approveRechargeRequest(requestId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     creditWallet(user: Principal, amount: bigint): Promise<void>;
+    deleteBanner(id: bigint): Promise<void>;
     deleteProduct(productId: bigint): Promise<void>;
     getAllOrders(): Promise<Array<OrderWithProduct>>;
     getAnnouncement(): Promise<string>;
+    getBanners(): Promise<Array<Banner>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getFeaturedProducts(): Promise<Array<Product>>;
     getMyAdminLevel(): Promise<AdminLevel>;
-    getUserAdminLevel(user: Principal): Promise<AdminLevel>;
-    setSubAdmin(user: Principal, enable: boolean): Promise<void>;
     getMyOrders(): Promise<Array<OrderWithProduct>>;
+    getPaymentSettings(): Promise<PaymentSettings>;
     getProducts(): Promise<Array<Product>>;
     getProductsByCategory(category: string): Promise<Array<Product>>;
     getRechargeRequests(): Promise<Array<Request>>;
+    getSiteSettings(): Promise<SiteSettings>;
+    getUserAdminLevel(user: Principal): Promise<AdminLevel>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getWalletBalance(): Promise<bigint>;
     initializeSampleData(): Promise<void>;
@@ -194,11 +220,15 @@ export interface backendInterface {
     rejectRechargeRequest(requestId: bigint): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setAnnouncement(text: string): Promise<void>;
+    setPaymentSettings(settings: PaymentSettings): Promise<void>;
+    setSiteSettings(settings: SiteSettings): Promise<void>;
+    setSubAdmin(user: Principal, enable: boolean): Promise<void>;
     submitRechargeRequest(input: RechargeRequestInput): Promise<bigint>;
+    updateBanner(id: bigint, input: BannerInput): Promise<void>;
     updateOrderStatus(orderId: bigint, newStatus: OrderStatus): Promise<void>;
     updateProduct(productId: bigint, input: ProductInput): Promise<void>;
 }
-import type { OrderStatus as _OrderStatus, OrderWithProduct as _OrderWithProduct, PaymentMethod as _PaymentMethod, Product as _Product, RechargeRequestInput as _RechargeRequestInput, Request as _Request, RequestStatus as _RequestStatus, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
+import type { AdminLevel as _AdminLevel, OrderStatus as _OrderStatus, OrderWithProduct as _OrderWithProduct, PaymentMethod as _PaymentMethod, Product as _Product, RechargeRequestInput as _RechargeRequestInput, Request as _Request, RequestStatus as _RequestStatus, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
@@ -212,6 +242,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor._initializeAccessControlWithSecret(arg0);
+            return result;
+        }
+    }
+    async addBanner(arg0: BannerInput): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addBanner(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addBanner(arg0);
             return result;
         }
     }
@@ -271,6 +315,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async deleteBanner(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteBanner(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteBanner(arg0);
+            return result;
+        }
+    }
     async deleteProduct(arg0: bigint): Promise<void> {
         if (this.processError) {
             try {
@@ -310,6 +368,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.getAnnouncement();
+            return result;
+        }
+    }
+    async getBanners(): Promise<Array<Banner>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getBanners();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getBanners();
             return result;
         }
     }
@@ -355,6 +427,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getMyAdminLevel(): Promise<AdminLevel> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMyAdminLevel();
+                return from_candid_AdminLevel_n11(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMyAdminLevel();
+            return from_candid_AdminLevel_n11(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async getMyOrders(): Promise<Array<OrderWithProduct>> {
         if (this.processError) {
             try {
@@ -367,6 +453,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getMyOrders();
             return from_candid_vec_n3(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getPaymentSettings(): Promise<PaymentSettings> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getPaymentSettings();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getPaymentSettings();
+            return result;
         }
     }
     async getProducts(): Promise<Array<Product>> {
@@ -401,14 +501,42 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.getRechargeRequests();
-                return from_candid_vec_n11(this._uploadFile, this._downloadFile, result);
+                return from_candid_vec_n13(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getRechargeRequests();
-            return from_candid_vec_n11(this._uploadFile, this._downloadFile, result);
+            return from_candid_vec_n13(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getSiteSettings(): Promise<SiteSettings> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getSiteSettings();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getSiteSettings();
+            return result;
+        }
+    }
+    async getUserAdminLevel(arg0: Principal): Promise<AdminLevel> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getUserAdminLevel(arg0);
+                return from_candid_AdminLevel_n11(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getUserAdminLevel(arg0);
+            return from_candid_AdminLevel_n11(this._uploadFile, this._downloadFile, result);
         }
     }
     async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
@@ -523,31 +651,87 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async submitRechargeRequest(arg0: RechargeRequestInput): Promise<bigint> {
+    async setPaymentSettings(arg0: PaymentSettings): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.submitRechargeRequest(to_candid_RechargeRequestInput_n18(this._uploadFile, this._downloadFile, arg0));
+                const result = await this.actor.setPaymentSettings(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.submitRechargeRequest(to_candid_RechargeRequestInput_n18(this._uploadFile, this._downloadFile, arg0));
+            const result = await this.actor.setPaymentSettings(arg0);
+            return result;
+        }
+    }
+    async setSiteSettings(arg0: SiteSettings): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setSiteSettings(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setSiteSettings(arg0);
+            return result;
+        }
+    }
+    async setSubAdmin(arg0: Principal, arg1: boolean): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setSubAdmin(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setSubAdmin(arg0, arg1);
+            return result;
+        }
+    }
+    async submitRechargeRequest(arg0: RechargeRequestInput): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.submitRechargeRequest(to_candid_RechargeRequestInput_n20(this._uploadFile, this._downloadFile, arg0));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.submitRechargeRequest(to_candid_RechargeRequestInput_n20(this._uploadFile, this._downloadFile, arg0));
+            return result;
+        }
+    }
+    async updateBanner(arg0: bigint, arg1: BannerInput): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.updateBanner(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.updateBanner(arg0, arg1);
             return result;
         }
     }
     async updateOrderStatus(arg0: bigint, arg1: OrderStatus): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.updateOrderStatus(arg0, to_candid_OrderStatus_n22(this._uploadFile, this._downloadFile, arg1));
+                const result = await this.actor.updateOrderStatus(arg0, to_candid_OrderStatus_n24(this._uploadFile, this._downloadFile, arg1));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.updateOrderStatus(arg0, to_candid_OrderStatus_n22(this._uploadFile, this._downloadFile, arg1));
+            const result = await this.actor.updateOrderStatus(arg0, to_candid_OrderStatus_n24(this._uploadFile, this._downloadFile, arg1));
             return result;
         }
     }
@@ -565,19 +749,9 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getMyAdminLevel(): Promise<AdminLevel> {
-        const result = await this.actor.getMyAdminLevel();
-        const key = Object.keys(result)[0];
-        return key === "superAdmin" ? AdminLevel.superAdmin : key === "subAdmin" ? AdminLevel.subAdmin : AdminLevel.none;
-    }
-    async getUserAdminLevel(arg0: Principal): Promise<AdminLevel> {
-        const result = await this.actor.getUserAdminLevel(arg0);
-        const key = Object.keys(result)[0];
-        return key === "superAdmin" ? AdminLevel.superAdmin : key === "subAdmin" ? AdminLevel.subAdmin : AdminLevel.none;
-    }
-    async setSubAdmin(arg0: Principal, arg1: boolean): Promise<void> {
-        return this.actor.setSubAdmin(arg0, arg1);
-    }
+}
+function from_candid_AdminLevel_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _AdminLevel): AdminLevel {
+    return from_candid_variant_n12(_uploadFile, _downloadFile, value);
 }
 function from_candid_OrderStatus_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _OrderStatus): OrderStatus {
     return from_candid_variant_n7(_uploadFile, _downloadFile, value);
@@ -585,14 +759,14 @@ function from_candid_OrderStatus_n6(_uploadFile: (file: ExternalBlob) => Promise
 function from_candid_OrderWithProduct_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _OrderWithProduct): OrderWithProduct {
     return from_candid_record_n5(_uploadFile, _downloadFile, value);
 }
-function from_candid_PaymentMethod_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _PaymentMethod): PaymentMethod {
+function from_candid_PaymentMethod_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _PaymentMethod): PaymentMethod {
+    return from_candid_variant_n19(_uploadFile, _downloadFile, value);
+}
+function from_candid_RequestStatus_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _RequestStatus): RequestStatus {
     return from_candid_variant_n17(_uploadFile, _downloadFile, value);
 }
-function from_candid_RequestStatus_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _RequestStatus): RequestStatus {
-    return from_candid_variant_n15(_uploadFile, _downloadFile, value);
-}
-function from_candid_Request_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Request): Request {
-    return from_candid_record_n13(_uploadFile, _downloadFile, value);
+function from_candid_Request_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Request): Request {
+    return from_candid_record_n15(_uploadFile, _downloadFile, value);
 }
 function from_candid_UserRole_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
     return from_candid_variant_n10(_uploadFile, _downloadFile, value);
@@ -600,7 +774,7 @@ function from_candid_UserRole_n9(_uploadFile: (file: ExternalBlob) => Promise<Ui
 function from_candid_opt_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_record_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_record_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     id: bigint;
     status: _RequestStatus;
     paymentMethod: _PaymentMethod;
@@ -619,8 +793,8 @@ function from_candid_record_n13(_uploadFile: (file: ExternalBlob) => Promise<Uin
 } {
     return {
         id: value.id,
-        status: from_candid_RequestStatus_n14(_uploadFile, _downloadFile, value.status),
-        paymentMethod: from_candid_PaymentMethod_n16(_uploadFile, _downloadFile, value.paymentMethod),
+        status: from_candid_RequestStatus_n16(_uploadFile, _downloadFile, value.status),
+        paymentMethod: from_candid_PaymentMethod_n18(_uploadFile, _downloadFile, value.paymentMethod),
         createdAt: value.createdAt,
         user: value.user,
         amount: value.amount,
@@ -669,7 +843,16 @@ function from_candid_variant_n10(_uploadFile: (file: ExternalBlob) => Promise<Ui
 }): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
 }
-function from_candid_variant_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    none: null;
+} | {
+    superAdmin: null;
+} | {
+    subAdmin: null;
+}): AdminLevel {
+    return "none" in value ? AdminLevel.none : "superAdmin" in value ? AdminLevel.superAdmin : "subAdmin" in value ? AdminLevel.subAdmin : value;
+}
+function from_candid_variant_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     pending: null;
 } | {
     approved: null;
@@ -678,7 +861,7 @@ function from_candid_variant_n15(_uploadFile: (file: ExternalBlob) => Promise<Ui
 }): RequestStatus {
     return "pending" in value ? RequestStatus.pending : "approved" in value ? RequestStatus.approved : "rejected" in value ? RequestStatus.rejected : value;
 }
-function from_candid_variant_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     nagad: null;
 } | {
     bkash: null;
@@ -698,25 +881,25 @@ function from_candid_variant_n7(_uploadFile: (file: ExternalBlob) => Promise<Uin
 }): OrderStatus {
     return "cancelled" in value ? OrderStatus.cancelled : "pending" in value ? OrderStatus.pending : "completed" in value ? OrderStatus.completed : "processing" in value ? OrderStatus.processing : value;
 }
-function from_candid_vec_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_Request>): Array<Request> {
-    return value.map((x)=>from_candid_Request_n12(_uploadFile, _downloadFile, x));
+function from_candid_vec_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_Request>): Array<Request> {
+    return value.map((x)=>from_candid_Request_n14(_uploadFile, _downloadFile, x));
 }
 function from_candid_vec_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_OrderWithProduct>): Array<OrderWithProduct> {
     return value.map((x)=>from_candid_OrderWithProduct_n4(_uploadFile, _downloadFile, x));
 }
-function to_candid_OrderStatus_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: OrderStatus): _OrderStatus {
+function to_candid_OrderStatus_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: OrderStatus): _OrderStatus {
+    return to_candid_variant_n25(_uploadFile, _downloadFile, value);
+}
+function to_candid_PaymentMethod_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: PaymentMethod): _PaymentMethod {
     return to_candid_variant_n23(_uploadFile, _downloadFile, value);
 }
-function to_candid_PaymentMethod_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: PaymentMethod): _PaymentMethod {
-    return to_candid_variant_n21(_uploadFile, _downloadFile, value);
-}
-function to_candid_RechargeRequestInput_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: RechargeRequestInput): _RechargeRequestInput {
-    return to_candid_record_n19(_uploadFile, _downloadFile, value);
+function to_candid_RechargeRequestInput_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: RechargeRequestInput): _RechargeRequestInput {
+    return to_candid_record_n21(_uploadFile, _downloadFile, value);
 }
 function to_candid_UserRole_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
     return to_candid_variant_n2(_uploadFile, _downloadFile, value);
 }
-function to_candid_record_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function to_candid_record_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     paymentMethod: PaymentMethod;
     amount: bigint;
     transactionId: string;
@@ -726,7 +909,7 @@ function to_candid_record_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     transactionId: string;
 } {
     return {
-        paymentMethod: to_candid_PaymentMethod_n20(_uploadFile, _downloadFile, value.paymentMethod),
+        paymentMethod: to_candid_PaymentMethod_n22(_uploadFile, _downloadFile, value.paymentMethod),
         amount: value.amount,
         transactionId: value.transactionId
     };
@@ -746,7 +929,7 @@ function to_candid_variant_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8
         guest: null
     } : value;
 }
-function to_candid_variant_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: PaymentMethod): {
+function to_candid_variant_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: PaymentMethod): {
     nagad: null;
 } | {
     bkash: null;
@@ -761,7 +944,7 @@ function to_candid_variant_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint
         rocket: null
     } : value;
 }
-function to_candid_variant_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: OrderStatus): {
+function to_candid_variant_n25(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: OrderStatus): {
     cancelled: null;
 } | {
     pending: null;

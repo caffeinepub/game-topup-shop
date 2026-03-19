@@ -1,10 +1,13 @@
 import type { Principal } from "@icp-sdk/core/principal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  BannerInput,
   CreateOrderInput,
   OrderStatus,
+  PaymentSettings,
   ProductInput,
   RechargeRequestInput,
+  SiteSettings,
   UserProfile,
 } from "../backend.d";
 import { useActor } from "./useActor";
@@ -357,6 +360,115 @@ export function useSetSubAdmin() {
     }: { user: Principal; enable: boolean }) => {
       if (!actor) throw new Error("Not connected");
       return actor.setSubAdmin(user, enable);
+    },
+  });
+}
+
+// Site Settings
+export function useGetSiteSettings() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["siteSettings"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getSiteSettings();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSetSiteSettings() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (settings: SiteSettings) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.setSiteSettings(settings);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["siteSettings"] });
+    },
+  });
+}
+
+// Payment Settings
+export function useGetPaymentSettings() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["paymentSettings"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getPaymentSettings();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSetPaymentSettings() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (settings: PaymentSettings) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.setPaymentSettings(settings);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["paymentSettings"] });
+    },
+  });
+}
+
+// Banners
+export function useGetBanners() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["banners"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getBanners();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAddBanner() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: BannerInput) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.addBanner(input);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["banners"] });
+    },
+  });
+}
+
+export function useUpdateBanner() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: bigint; input: BannerInput }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.updateBanner(id, input);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["banners"] });
+    },
+  });
+}
+
+export function useDeleteBanner() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.deleteBanner(id);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["banners"] });
     },
   });
 }

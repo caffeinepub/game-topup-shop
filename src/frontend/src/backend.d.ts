@@ -7,9 +7,6 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-export interface UserProfile {
-    name: string;
-}
 export interface ProductInput {
     name: string;
     description: string;
@@ -18,16 +15,6 @@ export interface ProductInput {
     isFeatured: boolean;
     category: string;
     price: bigint;
-}
-export interface RechargeRequestInput {
-    paymentMethod: PaymentMethod;
-    amount: bigint;
-    transactionId: string;
-}
-export interface CreateOrderInput {
-    gameId: string;
-    productId: bigint;
-    quantity: bigint;
 }
 export interface OrderWithProduct {
     id: bigint;
@@ -40,6 +27,47 @@ export interface OrderWithProduct {
     totalPrice: bigint;
     product: Product;
 }
+export interface Request {
+    id: bigint;
+    status: RequestStatus;
+    paymentMethod: PaymentMethod;
+    createdAt: bigint;
+    user: Principal;
+    amount: bigint;
+    transactionId: string;
+}
+export interface PaymentSettings {
+    nagad: string;
+    bkash: string;
+    rocket: string;
+}
+export interface SiteSettings {
+    siteName: string;
+    logoUrl: string;
+}
+export interface RechargeRequestInput {
+    paymentMethod: PaymentMethod;
+    amount: bigint;
+    transactionId: string;
+}
+export interface Banner {
+    id: bigint;
+    title: string;
+    description: string;
+    isActive: boolean;
+    imageUrl: string;
+}
+export interface CreateOrderInput {
+    gameId: string;
+    productId: bigint;
+    quantity: bigint;
+}
+export interface BannerInput {
+    title: string;
+    description: string;
+    isActive: boolean;
+    imageUrl: string;
+}
 export interface Product {
     id: bigint;
     name: string;
@@ -50,14 +78,13 @@ export interface Product {
     category: string;
     price: bigint;
 }
-export interface Request {
-    id: bigint;
-    status: RequestStatus;
-    paymentMethod: PaymentMethod;
-    createdAt: bigint;
-    user: Principal;
-    amount: bigint;
-    transactionId: string;
+export interface UserProfile {
+    name: string;
+}
+export enum AdminLevel {
+    none = "none",
+    superAdmin = "superAdmin",
+    subAdmin = "subAdmin"
 }
 export enum OrderStatus {
     cancelled = "cancelled",
@@ -80,28 +107,28 @@ export enum UserRole {
     user = "user",
     guest = "guest"
 }
-export enum AdminLevel {
-    superAdmin = "superAdmin",
-    subAdmin = "subAdmin",
-    none = "none"
-}
 export interface backendInterface {
+    addBanner(input: BannerInput): Promise<bigint>;
     addProduct(input: ProductInput): Promise<bigint>;
     approveRechargeRequest(requestId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     creditWallet(user: Principal, amount: bigint): Promise<void>;
+    deleteBanner(id: bigint): Promise<void>;
     deleteProduct(productId: bigint): Promise<void>;
     getAllOrders(): Promise<Array<OrderWithProduct>>;
     getAnnouncement(): Promise<string>;
+    getBanners(): Promise<Array<Banner>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getFeaturedProducts(): Promise<Array<Product>>;
     getMyAdminLevel(): Promise<AdminLevel>;
-    getUserAdminLevel(user: Principal): Promise<AdminLevel>;
     getMyOrders(): Promise<Array<OrderWithProduct>>;
+    getPaymentSettings(): Promise<PaymentSettings>;
     getProducts(): Promise<Array<Product>>;
     getProductsByCategory(category: string): Promise<Array<Product>>;
     getRechargeRequests(): Promise<Array<Request>>;
+    getSiteSettings(): Promise<SiteSettings>;
+    getUserAdminLevel(user: Principal): Promise<AdminLevel>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getWalletBalance(): Promise<bigint>;
     initializeSampleData(): Promise<void>;
@@ -110,8 +137,11 @@ export interface backendInterface {
     rejectRechargeRequest(requestId: bigint): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setAnnouncement(text: string): Promise<void>;
+    setPaymentSettings(settings: PaymentSettings): Promise<void>;
+    setSiteSettings(settings: SiteSettings): Promise<void>;
     setSubAdmin(user: Principal, enable: boolean): Promise<void>;
     submitRechargeRequest(input: RechargeRequestInput): Promise<bigint>;
+    updateBanner(id: bigint, input: BannerInput): Promise<void>;
     updateOrderStatus(orderId: bigint, newStatus: OrderStatus): Promise<void>;
     updateProduct(productId: bigint, input: ProductInput): Promise<void>;
 }

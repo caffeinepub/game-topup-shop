@@ -17,6 +17,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Principal } from "@icp-sdk/core/principal";
@@ -25,6 +33,7 @@ import {
   Clock,
   Edit3,
   Hash,
+  ImageIcon,
   Loader2,
   Plus,
   Search,
@@ -33,27 +42,35 @@ import {
   ShieldOff,
   Trash2,
   User,
+  Users,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AdminLevel, OrderStatus, RequestStatus, UserRole } from "../backend.d";
-import type { Product, ProductInput } from "../backend.d";
+import type { BannerInput, Product, ProductInput } from "../backend.d";
+import { useActor } from "../hooks/useActor";
 import {
+  useAddBanner,
   useAddProduct,
   useAllOrders,
   useAllRechargeRequests,
   useApproveRechargeRequest,
-  useAssignRole,
   useCreditWallet,
+  useDeleteBanner,
   useDeleteProduct,
+  useGetBanners,
+  useGetPaymentSettings,
+  useGetSiteSettings,
   useInitializeSampleData,
-  useLookupMember,
   useMyAdminLevel,
   useProducts,
   useRejectRechargeRequest,
   useSetAnnouncement,
+  useSetPaymentSettings,
+  useSetSiteSettings,
   useSetSubAdmin,
+  useUpdateBanner,
   useUpdateOrderStatus,
   useUpdateProduct,
 } from "../hooks/useQueries";
@@ -66,6 +83,13 @@ const emptyProduct: ProductInput = {
   imageUrl: "",
   category: "free-fire",
   isFeatured: false,
+  isActive: true,
+};
+
+const emptyBanner: BannerInput = {
+  title: "",
+  description: "",
+  imageUrl: "",
   isActive: true,
 };
 
@@ -151,6 +175,211 @@ function AdminLevelBadge({ level }: { level: AdminLevel }) {
   );
 }
 
+interface MembersListTabProps {
+  orders: import("../backend.d").OrderWithProduct[] | undefined;
+  rechargeRequests: import("../backend.d").Request[] | undefined;
+  setSubAdmin: (args: {
+    user: import("@icp-sdk/core/principal").Principal;
+    enable: boolean;
+  }) => Promise<unknown>;
+}
+
+function MembersListTab({
+  orders,
+  rechargeRequests,
+  setSubAdmin,
+}: MembersListTabProps) {
+  const { actor } = useActor();
+  const [memberInfos, setMemberInfos] = useState<
+    {
+      principal: import("@icp-sdk/core/principal").Principal;
+      adminLevel: AdminLevel;
+      name: string | null;
+      loading: boolean;
+    }[]
+  >([]);
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!actor || initialized) return;
+    const uniquePrincipals = new Map<
+      string,
+      import("@icp-sdk/core/principal").Principal
+    >();
+    for (const o of orders ?? [])
+      uniquePrincipals.set(o.userId.toString(), o.userId);
+    for (const r of rechargeRequests ?? [])
+      uniquePrincipals.set(r.user.toString(), r.user);
+    if (uniquePrincipals.size === 0) {
+      setInitialized(true);
+      return;
+    }
+    const entries = Array.from(uniquePrincipals.values());
+    setMemberInfos(
+      entries.map((p) => ({
+        principal: p,
+        adminLevel: AdminLevel.none,
+        name: null,
+        loading: true,
+      })),
+    );
+    setInitialized(true);
+    Promise.all(
+      entries.map(async (p, i) => {
+        const [level, profile] = await Promise.all([
+          actor.getUserAdminLevel(p),
+          actor.getUserProfile(p),
+        ]);
+        return { index: i, level, name: profile?.name ?? null };
+      }),
+    ).then((results) => {
+      setMemberInfos((prev) => {
+        const next = [...prev];
+        for (const r of results) {
+          if (next[r.index]) {
+            next[r.index] = {
+              ...next[r.index],
+              adminLevel: r.level,
+              name: r.name,
+              loading: false,
+            };
+          }
+        }
+        return next;
+      });
+    });
+  }, [actor, orders, rechargeRequests, initialized]);
+
+  const handleToggle = async (idx: number, enable: boolean) => {
+    const member = memberInfos[idx];
+    if (!member) return;
+    try {
+      await setSubAdmin({ user: member.principal, enable });
+      setMemberInfos((prev) => {
+        const next = [...prev];
+        next[idx] = {
+          ...next[idx],
+          adminLevel: enable ? AdminLevel.subAdmin : AdminLevel.none,
+        };
+        return next;
+      });
+      toast.success(enable ? "সাব-অ্যাডমিন করা হয়েছে" : "সাব-অ্যাডমিন সরানো হয়েছে");
+    } catch {
+      toast.error("ব্যর্থ হয়েছে");
+    }
+  };
+
+  if (
+    !initialized ||
+    (memberInfos.length > 0 && memberInfos.every((m) => m.loading))
+  ) {
+    return (
+      <div
+        data-ocid="admin.members.loading_state"
+        className="flex items-center justify-center py-12"
+      >
+        <Loader2 size={24} className="animate-spin text-orange-500" />
+      </div>
+    );
+  }
+
+  if (memberInfos.length === 0) {
+    return (
+      <div
+        data-ocid="admin.members.empty_state"
+        className="bg-white rounded-xl border border-gray-100 p-8 text-center"
+      >
+        <Users size={32} className="text-gray-300 mx-auto mb-2" />
+        <p className="text-sm text-gray-500">কোনো মেম্বার নেই</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-orange-50">
+            <TableHead className="text-xs font-semibold text-gray-700 w-20">
+              কোড
+            </TableHead>
+            <TableHead className="text-xs font-semibold text-gray-700">
+              নাম
+            </TableHead>
+            <TableHead className="text-xs font-semibold text-gray-700">
+              রোল
+            </TableHead>
+            <TableHead className="text-xs font-semibold text-gray-700 text-right">
+              অ্যাকশন
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {memberInfos.map((member, idx) => {
+            const code = principalToCode(member.principal.toString());
+            const isSuperAdminMember =
+              member.adminLevel === AdminLevel.superAdmin;
+            const isSubAdminMember = member.adminLevel === AdminLevel.subAdmin;
+            return (
+              <TableRow
+                key={member.principal.toString()}
+                data-ocid={`admin.members.item.${idx + 1}`}
+                className="hover:bg-gray-50"
+              >
+                <TableCell>
+                  {member.loading ? (
+                    <Loader2 size={12} className="animate-spin text-gray-400" />
+                  ) : (
+                    <span className="font-mono font-bold text-orange-600 text-sm tracking-widest">
+                      #{code}
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell className="text-xs text-gray-700">
+                  {member.loading ? "..." : member.name || "নাম নেই"}
+                </TableCell>
+                <TableCell>
+                  {!member.loading && (
+                    <AdminLevelBadge level={member.adminLevel} />
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  {isSuperAdminMember ? (
+                    <span className="text-[11px] text-purple-600 font-semibold">
+                      সুপার অ্যাডমিন
+                    </span>
+                  ) : isSubAdminMember ? (
+                    <Button
+                      data-ocid={`admin.members.delete_button.${idx + 1}`}
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7 border-red-200 text-red-600 hover:bg-red-50"
+                      onClick={() => handleToggle(idx, false)}
+                    >
+                      সরান
+                    </Button>
+                  ) : (
+                    <Button
+                      data-ocid={`admin.members.edit_button.${idx + 1}`}
+                      size="sm"
+                      className="text-xs h-7 bg-orange-500 hover:bg-orange-600 text-white"
+                      onClick={() => handleToggle(idx, true)}
+                      disabled={member.loading}
+                    >
+                      <ShieldCheck size={11} className="mr-1" />
+                      সাব-অ্যাডমিন
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { data: myAdminLevel } = useMyAdminLevel();
   const isSuperAdmin = myAdminLevel === AdminLevel.superAdmin;
@@ -158,6 +387,10 @@ export default function AdminPage() {
   const { data: products } = useProducts();
   const { data: orders } = useAllOrders();
   const { data: rechargeRequests } = useAllRechargeRequests();
+  const { data: siteSettings } = useGetSiteSettings();
+  const { data: paymentSettings } = useGetPaymentSettings();
+  const { data: banners } = useGetBanners();
+
   const { mutateAsync: addProduct, isPending: addingProduct } = useAddProduct();
   const { mutateAsync: updateProduct } = useUpdateProduct();
   const { mutateAsync: deleteProduct } = useDeleteProduct();
@@ -169,10 +402,15 @@ export default function AdminPage() {
   const { mutateAsync: creditWallet, isPending: crediting } = useCreditWallet();
   const { mutateAsync: approveRequest } = useApproveRechargeRequest();
   const { mutateAsync: rejectRequest } = useRejectRechargeRequest();
-  const { mutateAsync: lookupMember, isPending: lookingUp } = useLookupMember();
-  const { mutateAsync: assignRole, isPending: assigningRole } = useAssignRole();
-  const { mutateAsync: setSubAdmin, isPending: settingSubAdmin } =
-    useSetSubAdmin();
+  const { mutateAsync: setSubAdmin } = useSetSubAdmin();
+  const { mutateAsync: setSiteSettings, isPending: savingSite } =
+    useSetSiteSettings();
+  const { mutateAsync: setPaymentSettings, isPending: savingPayment } =
+    useSetPaymentSettings();
+  const { mutateAsync: addBanner, isPending: addingBanner } = useAddBanner();
+  const { mutateAsync: updateBanner, isPending: updatingBanner } =
+    useUpdateBanner();
+  const { mutateAsync: deleteBanner } = useDeleteBanner();
 
   const [productForm, setProductForm] = useState<ProductInput>(emptyProduct);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -181,15 +419,35 @@ export default function AdminPage() {
   const [creditPrincipal, setCreditPrincipal] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
 
-  // Member lookup state
-  const [memberPrincipal, setMemberPrincipal] = useState("");
-  const [memberResult, setMemberResult] = useState<{
-    principalId: string;
-    profile: { name: string } | null;
-    adminLevel: AdminLevel;
-  } | null>(null);
-  const [memberError, setMemberError] = useState("");
-  const [newRole, setNewRole] = useState<UserRole>(UserRole.user);
+  // Site settings state
+  const [siteName, setSiteName] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+
+  // Payment settings state
+  const [bkashNum, setBkashNum] = useState("");
+  const [nagadNum, setNagadNum] = useState("");
+  const [rocketNum, setRocketNum] = useState("");
+
+  // Banner state
+  const [bannerForm, setBannerForm] = useState<BannerInput>(emptyBanner);
+  const [editingBannerId, setEditingBannerId] = useState<bigint | null>(null);
+  const [bannerDialogOpen, setBannerDialogOpen] = useState(false);
+
+  // Sync backend data into local state
+  useEffect(() => {
+    if (siteSettings) {
+      setSiteName(siteSettings.siteName);
+      setLogoUrl(siteSettings.logoUrl);
+    }
+  }, [siteSettings]);
+
+  useEffect(() => {
+    if (paymentSettings) {
+      setBkashNum(paymentSettings.bkash);
+      setNagadNum(paymentSettings.nagad);
+      setRocketNum(paymentSettings.rocket);
+    }
+  }, [paymentSettings]);
 
   const handleProductSubmit = async () => {
     if (!productForm.name.trim()) {
@@ -199,43 +457,43 @@ export default function AdminPage() {
     try {
       if (editingProduct) {
         await updateProduct({ id: editingProduct.id, input: productForm });
-        toast.success("Product updated!");
+        toast.success("প্রোডাক্ট আপডেট হয়েছে!");
       } else {
         await addProduct(productForm);
-        toast.success("Product added!");
+        toast.success("প্রোডাক্ট যোগ হয়েছে!");
       }
       setProductForm(emptyProduct);
       setEditingProduct(null);
       setProductDialogOpen(false);
     } catch {
-      toast.error("Operation failed");
+      toast.error("অপারেশন ব্যর্থ হয়েছে");
     }
   };
 
   const handleDeleteProduct = async (id: bigint) => {
     try {
       await deleteProduct(id);
-      toast.success("Product deleted");
+      toast.success("প্রোডাক্ট মুছে গেছে");
     } catch {
-      toast.error("Delete failed");
+      toast.error("মুছতে ব্যর্থ হয়েছে");
     }
   };
 
   const handleStatusChange = async (orderId: bigint, status: OrderStatus) => {
     try {
       await updateStatus({ orderId, status });
-      toast.success("Status updated");
+      toast.success("স্ট্যাটাস আপডেট হয়েছে");
     } catch {
-      toast.error("Update failed");
+      toast.error("আপডেট ব্যর্থ হয়েছে");
     }
   };
 
   const handleSetAnnouncement = async () => {
     try {
       await setAnnouncement(announcement);
-      toast.success("Announcement updated!");
+      toast.success("ঘোষণা আপডেট হয়েছে!");
     } catch {
-      toast.error("Failed");
+      toast.error("ব্যর্থ হয়েছে");
     }
   };
 
@@ -271,61 +529,55 @@ export default function AdminPage() {
     }
   };
 
-  const handleMemberLookup = async () => {
-    setMemberError("");
-    setMemberResult(null);
-    if (!memberPrincipal.trim()) {
-      setMemberError("Principal ID লিখুন");
+  const handleSaveSiteSettings = async () => {
+    try {
+      await setSiteSettings({ siteName, logoUrl });
+      toast.success("সাইট সেটিংস সেভ হয়েছে!");
+    } catch {
+      toast.error("সেভ ব্যর্থ হয়েছে");
+    }
+  };
+
+  const handleSavePaymentSettings = async () => {
+    try {
+      await setPaymentSettings({
+        bkash: bkashNum,
+        nagad: nagadNum,
+        rocket: rocketNum,
+      });
+      toast.success("পেমেন্ট নম্বর সেভ হয়েছে!");
+    } catch {
+      toast.error("সেভ ব্যর্থ হয়েছে");
+    }
+  };
+
+  const handleBannerSubmit = async () => {
+    if (!bannerForm.title.trim()) {
+      toast.error("ব্যানারের শিরোনাম দিন");
       return;
     }
     try {
-      const principal = Principal.fromText(memberPrincipal.trim());
-      const result = await lookupMember(principal);
-      setMemberResult({
-        principalId: memberPrincipal.trim(),
-        profile: result.profile,
-        adminLevel: result.adminLevel,
-      });
+      if (editingBannerId !== null) {
+        await updateBanner({ id: editingBannerId, input: bannerForm });
+        toast.success("ব্যানার আপডেট হয়েছে!");
+      } else {
+        await addBanner(bannerForm);
+        toast.success("ব্যানার যোগ হয়েছে!");
+      }
+      setBannerForm(emptyBanner);
+      setEditingBannerId(null);
+      setBannerDialogOpen(false);
     } catch {
-      setMemberError("ইনভ্যালিড Principal ID বা মেম্বার পাওয়া যায়নি");
+      toast.error("অপারেশন ব্যর্থ হয়েছে");
     }
   };
 
-  const handleAssignRole = async () => {
-    if (!memberResult) return;
+  const handleDeleteBanner = async (id: bigint) => {
     try {
-      await assignRole({
-        user: Principal.fromText(memberResult.principalId),
-        role: newRole,
-      });
-      toast.success("রোল আপডেট হয়েছে!");
+      await deleteBanner(id);
+      toast.success("ব্যানার মুছে গেছে");
     } catch {
-      toast.error("রোল আপডেট ব্যর্থ হয়েছে");
-    }
-  };
-
-  const handleToggleSubAdmin = async (enable: boolean) => {
-    if (!memberResult) return;
-    try {
-      await setSubAdmin({
-        user: Principal.fromText(memberResult.principalId),
-        enable,
-      });
-      setMemberResult((prev) =>
-        prev
-          ? {
-              ...prev,
-              adminLevel: enable ? AdminLevel.subAdmin : AdminLevel.none,
-            }
-          : null,
-      );
-      toast.success(
-        enable
-          ? "সাব-অ্যাডমিন হিসেবে যোগ করা হয়েছে!"
-          : "সাব-অ্যাডমিন পদ থেকে সরানো হয়েছে।",
-      );
-    } catch {
-      toast.error("আপডেট ব্যর্থ হয়েছে");
+      toast.error("মুছতে ব্যর্থ হয়েছে");
     }
   };
 
@@ -359,22 +611,22 @@ export default function AdminPage() {
             className={`w-full mb-4 bg-white border grid grid-cols-${tabCount}`}
           >
             <TabsTrigger value="products" className="text-[11px] px-1">
-              Products
+              পণ্য
             </TabsTrigger>
             <TabsTrigger value="orders" className="text-[11px] px-1">
-              Orders
+              অর্ডার
             </TabsTrigger>
             <TabsTrigger value="recharge" className="text-[11px] px-1">
-              Recharge
+              রিচার্জ
             </TabsTrigger>
             {isSuperAdmin && (
               <TabsTrigger value="members" className="text-[11px] px-1">
-                Members
+                মেম্বার
               </TabsTrigger>
             )}
             {isSuperAdmin && (
               <TabsTrigger value="settings" className="text-[11px] px-1">
-                Settings
+                সেটিংস
               </TabsTrigger>
             )}
           </TabsList>
@@ -383,7 +635,7 @@ export default function AdminPage() {
           <TabsContent value="products" className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-sm font-semibold text-gray-700">
-                {products?.length ?? 0} Products
+                {products?.length ?? 0} পণ্য
               </span>
               <Dialog
                 open={productDialogOpen}
@@ -399,7 +651,7 @@ export default function AdminPage() {
                       setProductForm(emptyProduct);
                     }}
                   >
-                    <Plus size={14} className="mr-1" /> Add Product
+                    <Plus size={14} className="mr-1" /> নতুন পণ্য
                   </Button>
                 </DialogTrigger>
                 <DialogContent
@@ -408,12 +660,12 @@ export default function AdminPage() {
                 >
                   <DialogHeader>
                     <DialogTitle>
-                      {editingProduct ? "Edit Product" : "Add Product"}
+                      {editingProduct ? "পণ্য সম্পাদনা" : "নতুন পণ্য যোগ করুন"}
                     </DialogTitle>
                   </DialogHeader>
                   <div className="space-y-3">
                     <div>
-                      <Label className="text-xs">Name</Label>
+                      <Label className="text-xs">নাম</Label>
                       <Input
                         data-ocid="admin.product.input"
                         value={productForm.name}
@@ -423,11 +675,11 @@ export default function AdminPage() {
                             name: e.target.value,
                           }))
                         }
-                        placeholder="Product name"
+                        placeholder="পণ্যের নাম"
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Description</Label>
+                      <Label className="text-xs">বিবরণ</Label>
                       <Textarea
                         data-ocid="admin.product.textarea"
                         value={productForm.description}
@@ -437,12 +689,12 @@ export default function AdminPage() {
                             description: e.target.value,
                           }))
                         }
-                        placeholder="Description"
+                        placeholder="বিবরণ"
                         rows={2}
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Price (Tk)</Label>
+                      <Label className="text-xs">দাম (টাকা)</Label>
                       <Input
                         value={productForm.price.toString()}
                         onChange={(e) =>
@@ -456,7 +708,7 @@ export default function AdminPage() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Image URL</Label>
+                      <Label className="text-xs">ছবির URL</Label>
                       <Input
                         value={productForm.imageUrl}
                         onChange={(e) =>
@@ -469,7 +721,7 @@ export default function AdminPage() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Category</Label>
+                      <Label className="text-xs">ক্যাটাগরি</Label>
                       <Input
                         value={productForm.category}
                         onChange={(e) =>
@@ -490,7 +742,7 @@ export default function AdminPage() {
                             setProductForm((p) => ({ ...p, isFeatured: v }))
                           }
                         />
-                        <Label className="text-xs">Featured</Label>
+                        <Label className="text-xs">ফিচার্ড</Label>
                       </div>
                       <div className="flex items-center gap-2">
                         <Switch
@@ -499,7 +751,7 @@ export default function AdminPage() {
                             setProductForm((p) => ({ ...p, isActive: v }))
                           }
                         />
-                        <Label className="text-xs">Active</Label>
+                        <Label className="text-xs">সক্রিয়</Label>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -509,7 +761,7 @@ export default function AdminPage() {
                         onClick={() => setProductDialogOpen(false)}
                         className="flex-1"
                       >
-                        Cancel
+                        বাতিল
                       </Button>
                       <Button
                         data-ocid="admin.product.submit_button"
@@ -520,7 +772,7 @@ export default function AdminPage() {
                         {addingProduct && (
                           <Loader2 size={14} className="animate-spin mr-1" />
                         )}
-                        {editingProduct ? "Update" : "Add"}
+                        {editingProduct ? "আপডেট" : "যোগ করুন"}
                       </Button>
                     </div>
                   </div>
@@ -653,7 +905,7 @@ export default function AdminPage() {
                 data-ocid="admin.orders.empty_state"
                 className="text-center py-12 text-gray-400"
               >
-                <p className="text-sm">No orders yet</p>
+                <p className="text-sm">কোনো অর্ডার নেই</p>
               </div>
             )}
           </TabsContent>
@@ -738,189 +990,113 @@ export default function AdminPage() {
             <TabsContent value="members" className="space-y-4">
               <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
                 <h3 className="font-bold text-sm text-gray-800 flex items-center gap-2">
-                  <User size={15} className="text-orange-500" />
-                  মেম্বার সার্চ
+                  <Users size={15} className="text-orange-500" />
+                  সকল মেম্বার
                 </h3>
                 <p className="text-xs text-gray-500">
-                  ইউজারের Principal ID দিয়ে তার প্রোফাইল দেখুন এবং রোল পরিবর্তন করুন।
+                  সকল মেম্বারের তালিকা দেখুন এবং রোল পরিবর্তন করুন।
                 </p>
-                <div className="flex gap-2">
-                  <Input
-                    data-ocid="admin.member.input"
-                    placeholder="Principal ID (যেমন: xxxxx-xxxxx-...)"
-                    value={memberPrincipal}
-                    onChange={(e) => {
-                      setMemberPrincipal(e.target.value);
-                      setMemberError("");
-                      setMemberResult(null);
-                    }}
-                    className="text-xs"
-                  />
-                  <Button
-                    data-ocid="admin.member.search_button"
-                    onClick={handleMemberLookup}
-                    disabled={lookingUp}
-                    className="bg-orange-500 hover:bg-orange-600 text-white shrink-0"
-                    size="sm"
-                  >
-                    {lookingUp ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Search size={14} />
-                    )}
-                  </Button>
-                </div>
-                {memberError && (
-                  <p className="text-xs text-red-500">{memberError}</p>
-                )}
               </div>
 
-              {memberResult && (
-                <div
-                  data-ocid="admin.member.result"
-                  className="bg-white rounded-xl border border-gray-100 p-4 space-y-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                      <User size={18} className="text-orange-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm text-gray-800">
-                        {memberResult.profile?.name || "নাম নেই"}
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[11px] text-gray-400">কোড:</span>
-                        <span className="font-mono font-black text-orange-600 text-sm tracking-widest">
-                          {principalToCode(memberResult.principalId)}
-                        </span>
-                      </div>
-                    </div>
-                    <AdminLevelBadge level={memberResult.adminLevel} />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-2 text-xs">
-                    <div className="flex items-center justify-between bg-orange-50 rounded-lg px-3 py-2">
-                      <span className="text-gray-500 flex items-center gap-1">
-                        <Hash size={11} /> মেম্বার কোড
-                      </span>
-                      <span className="font-mono font-black text-orange-600 text-base tracking-widest">
-                        {principalToCode(memberResult.principalId)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                      <span className="text-gray-500">বর্তমান স্ট্যাটাস</span>
-                      <AdminLevelBadge level={memberResult.adminLevel} />
-                    </div>
-                  </div>
-
-                  {/* Sub-Admin Management */}
-                  <div className="border border-blue-100 rounded-xl p-3 bg-blue-50 space-y-2">
-                    <p className="text-xs font-bold text-blue-800 flex items-center gap-1">
-                      <ShieldCheck size={13} /> সাব-অ্যাডমিন ম্যানেজমেন্ট
-                    </p>
-                    <p className="text-[11px] text-blue-600">
-                      সাব-অ্যাডমিন শুধু Products, Orders, ও Recharge ম্যানেজ করতে পারবে।
-                    </p>
-                    {memberResult.adminLevel === AdminLevel.subAdmin ? (
-                      <Button
-                        data-ocid="admin.member.remove_subadmin_button"
-                        size="sm"
-                        onClick={() => handleToggleSubAdmin(false)}
-                        disabled={settingSubAdmin}
-                        className="w-full bg-red-500 hover:bg-red-600 text-white text-xs h-8"
-                      >
-                        {settingSubAdmin ? (
-                          <Loader2 size={12} className="animate-spin mr-1" />
-                        ) : (
-                          <ShieldOff size={13} className="mr-1" />
-                        )}
-                        সাব-অ্যাডমিন থেকে সরান
-                      </Button>
-                    ) : memberResult.adminLevel === AdminLevel.none ? (
-                      <Button
-                        data-ocid="admin.member.make_subadmin_button"
-                        size="sm"
-                        onClick={() => handleToggleSubAdmin(true)}
-                        disabled={settingSubAdmin}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
-                      >
-                        {settingSubAdmin ? (
-                          <Loader2 size={12} className="animate-spin mr-1" />
-                        ) : (
-                          <ShieldCheck size={13} className="mr-1" />
-                        )}
-                        সাব-অ্যাডমিন বানান
-                      </Button>
-                    ) : (
-                      <p className="text-[11px] text-purple-600 font-semibold">
-                        এই ইউজার ইতিমধ্যে সুপার অ্যাডমিন।
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Role assignment */}
-                  <div className="border-t pt-3 space-y-2">
-                    <p className="text-xs font-semibold text-gray-700">
-                      সিস্টেম রোল পরিবর্তন করুন
-                    </p>
-                    <div className="flex gap-2">
-                      <Select
-                        value={newRole}
-                        onValueChange={(v) => setNewRole(v as UserRole)}
-                      >
-                        <SelectTrigger className="h-8 text-xs flex-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={UserRole.user} className="text-xs">
-                            সাধারণ ইউজার
-                          </SelectItem>
-                          <SelectItem
-                            value={UserRole.admin}
-                            className="text-xs"
-                          >
-                            সুপার অ্যাডমিন
-                          </SelectItem>
-                          <SelectItem
-                            value={UserRole.guest}
-                            className="text-xs"
-                          >
-                            গেস্ট
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        data-ocid="admin.member.assign_role_button"
-                        size="sm"
-                        onClick={handleAssignRole}
-                        disabled={assigningRole}
-                        className="bg-orange-500 hover:bg-orange-600 text-white text-xs h-8"
-                      >
-                        {assigningRole && (
-                          <Loader2 size={12} className="animate-spin mr-1" />
-                        )}
-                        আপডেট
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <MembersListTab
+                orders={orders}
+                rechargeRequests={rechargeRequests}
+                setSubAdmin={setSubAdmin}
+              />
             </TabsContent>
           )}
 
           {/* Settings Tab -- Super Admin only */}
           {isSuperAdmin && (
             <TabsContent value="settings" className="space-y-4">
-              {/* Announcement */}
+              {/* Section A: Site Settings */}
               <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-                <h3 className="font-bold text-sm text-gray-800">
-                  📢 Announcement
+                <h3 className="font-bold text-sm text-gray-800 flex items-center gap-2">
+                  🌐 সাইট সেটিংস
                 </h3>
+                <div>
+                  <Label className="text-xs mb-1 block">সাইটের নাম</Label>
+                  <Input
+                    data-ocid="admin.site.input"
+                    value={siteName}
+                    onChange={(e) => setSiteName(e.target.value)}
+                    placeholder="Game Topup Shop"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">লোগো URL</Label>
+                  <Input
+                    value={logoUrl}
+                    onChange={(e) => setLogoUrl(e.target.value)}
+                    placeholder="/assets/logo.png"
+                  />
+                </div>
+                <Button
+                  data-ocid="admin.site.save_button"
+                  onClick={handleSaveSiteSettings}
+                  disabled={savingSite}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  {savingSite && (
+                    <Loader2 size={14} className="animate-spin mr-1" />
+                  )}
+                  সেভ করুন
+                </Button>
+              </div>
+
+              {/* Section B: Payment Numbers */}
+              <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+                <h3 className="font-bold text-sm text-gray-800 flex items-center gap-2">
+                  💳 পেমেন্ট নম্বর
+                </h3>
+                <div>
+                  <Label className="text-xs mb-1 block">বিকাশ নম্বর</Label>
+                  <Input
+                    data-ocid="admin.payment.bkash_input"
+                    value={bkashNum}
+                    onChange={(e) => setBkashNum(e.target.value)}
+                    placeholder="01XXXXXXXXX"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">নগদ নম্বর</Label>
+                  <Input
+                    data-ocid="admin.payment.nagad_input"
+                    value={nagadNum}
+                    onChange={(e) => setNagadNum(e.target.value)}
+                    placeholder="01XXXXXXXXX"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">রকেট নম্বর</Label>
+                  <Input
+                    data-ocid="admin.payment.rocket_input"
+                    value={rocketNum}
+                    onChange={(e) => setRocketNum(e.target.value)}
+                    placeholder="01XXXXXXXXX"
+                  />
+                </div>
+                <Button
+                  data-ocid="admin.payment.save_button"
+                  onClick={handleSavePaymentSettings}
+                  disabled={savingPayment}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  {savingPayment && (
+                    <Loader2 size={14} className="animate-spin mr-1" />
+                  )}
+                  সেভ করুন
+                </Button>
+              </div>
+
+              {/* Section C: Announcement */}
+              <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+                <h3 className="font-bold text-sm text-gray-800">📢 ঘোষণা</h3>
                 <Textarea
                   data-ocid="admin.announcement.textarea"
                   value={announcement}
                   onChange={(e) => setAnnouncementText(e.target.value)}
-                  placeholder="Enter announcement text..."
+                  placeholder="ঘোষণার টেক্সট লিখুন..."
                   rows={3}
                 />
                 <Button
@@ -932,14 +1108,207 @@ export default function AdminPage() {
                   {settingAnn && (
                     <Loader2 size={14} className="animate-spin mr-1" />
                   )}
-                  Update Announcement
+                  ঘোষণা আপডেট করুন
                 </Button>
+              </div>
+
+              {/* Section D: Banner Management */}
+              <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-sm text-gray-800 flex items-center gap-2">
+                    <ImageIcon size={15} className="text-orange-500" /> ব্যানার
+                    ম্যানেজমেন্ট
+                  </h3>
+                  <Dialog
+                    open={bannerDialogOpen}
+                    onOpenChange={setBannerDialogOpen}
+                  >
+                    <DialogTrigger asChild>
+                      <Button
+                        data-ocid="admin.banner.open_modal_button"
+                        size="sm"
+                        className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
+                        onClick={() => {
+                          setEditingBannerId(null);
+                          setBannerForm(emptyBanner);
+                        }}
+                      >
+                        <Plus size={13} className="mr-1" /> নতুন ব্যানার
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent
+                      data-ocid="admin.banner.dialog"
+                      className="max-w-[380px]"
+                    >
+                      <DialogHeader>
+                        <DialogTitle>
+                          {editingBannerId !== null
+                            ? "ব্যানার সম্পাদনা"
+                            : "নতুন ব্যানার যোগ করুন"}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <div>
+                          <Label className="text-xs">শিরোনাম</Label>
+                          <Input
+                            data-ocid="admin.banner.input"
+                            value={bannerForm.title}
+                            onChange={(e) =>
+                              setBannerForm((b) => ({
+                                ...b,
+                                title: e.target.value,
+                              }))
+                            }
+                            placeholder="ব্যানারের শিরোনাম"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">বিবরণ</Label>
+                          <Textarea
+                            data-ocid="admin.banner.textarea"
+                            value={bannerForm.description}
+                            onChange={(e) =>
+                              setBannerForm((b) => ({
+                                ...b,
+                                description: e.target.value,
+                              }))
+                            }
+                            placeholder="বিবরণ (ঐচ্ছিক)"
+                            rows={2}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">ছবির URL</Label>
+                          <Input
+                            value={bannerForm.imageUrl}
+                            onChange={(e) =>
+                              setBannerForm((b) => ({
+                                ...b,
+                                imageUrl: e.target.value,
+                              }))
+                            }
+                            placeholder="/assets/..."
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            data-ocid="admin.banner.switch"
+                            checked={bannerForm.isActive}
+                            onCheckedChange={(v) =>
+                              setBannerForm((b) => ({ ...b, isActive: v }))
+                            }
+                          />
+                          <Label className="text-xs">সক্রিয়</Label>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            data-ocid="admin.banner.cancel_button"
+                            variant="outline"
+                            onClick={() => setBannerDialogOpen(false)}
+                            className="flex-1"
+                          >
+                            বাতিল
+                          </Button>
+                          <Button
+                            data-ocid="admin.banner.submit_button"
+                            onClick={handleBannerSubmit}
+                            disabled={addingBanner || updatingBanner}
+                            className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                          >
+                            {(addingBanner || updatingBanner) && (
+                              <Loader2
+                                size={14}
+                                className="animate-spin mr-1"
+                              />
+                            )}
+                            {editingBannerId !== null ? "আপডেট" : "যোগ করুন"}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                {(!banners || banners.length === 0) && (
+                  <div
+                    data-ocid="admin.banner.empty_state"
+                    className="text-center py-8 text-gray-400"
+                  >
+                    <p className="text-sm">কোনো ব্যানার নেই</p>
+                  </div>
+                )}
+
+                {banners?.map((banner, i) => (
+                  <div
+                    key={banner.id.toString()}
+                    data-ocid={`admin.banner.item.${i + 1}`}
+                    className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl"
+                  >
+                    {banner.imageUrl ? (
+                      <img
+                        src={banner.imageUrl}
+                        alt={banner.title}
+                        className="w-12 h-10 object-cover rounded-lg bg-gray-100"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <div className="w-12 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                        <ImageIcon size={14} className="text-gray-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-xs text-gray-800 truncate">
+                        {banner.title}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {banner.isActive ? (
+                          <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                            সক্রিয়
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                            নিষ্ক্রিয়
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        data-ocid={`admin.banner.edit_button.${i + 1}`}
+                        onClick={() => {
+                          setEditingBannerId(banner.id);
+                          setBannerForm({
+                            title: banner.title,
+                            description: banner.description,
+                            imageUrl: banner.imageUrl,
+                            isActive: banner.isActive,
+                          });
+                          setBannerDialogOpen(true);
+                        }}
+                        className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center hover:bg-blue-100"
+                      >
+                        <Edit3 size={12} className="text-blue-600" />
+                      </button>
+                      <button
+                        type="button"
+                        data-ocid={`admin.banner.delete_button.${i + 1}`}
+                        onClick={() => handleDeleteBanner(banner.id)}
+                        className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center hover:bg-red-100"
+                      >
+                        <Trash2 size={12} className="text-red-500" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Credit Wallet */}
               <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
                 <h3 className="font-bold text-sm text-gray-800">
-                  💰 Credit Wallet
+                  💰 ওয়ালেট ক্রেডিট করুন
                 </h3>
                 <Input
                   data-ocid="admin.credit.input"
@@ -948,7 +1317,7 @@ export default function AdminPage() {
                   onChange={(e) => setCreditPrincipal(e.target.value)}
                 />
                 <Input
-                  placeholder="Amount (Tk)"
+                  placeholder="পরিমাণ (টাকা)"
                   type="number"
                   value={creditAmount}
                   onChange={(e) => setCreditAmount(e.target.value)}
@@ -962,21 +1331,21 @@ export default function AdminPage() {
                   {crediting && (
                     <Loader2 size={14} className="animate-spin mr-1" />
                   )}
-                  Credit Wallet
+                  ক্রেডিট করুন
                 </Button>
               </div>
 
               {/* Initialize Data */}
               <div className="bg-white rounded-xl border border-gray-100 p-4">
                 <h3 className="font-bold text-sm text-gray-800 mb-3">
-                  🔄 Sample Data
+                  🔄 নমুনা ডেটা
                 </h3>
                 <Button
                   data-ocid="admin.init.button"
                   onClick={() =>
                     initData()
-                      .then(() => toast.success("Sample data initialized!"))
-                      .catch(() => toast.error("Failed"))
+                      .then(() => toast.success("নমুনা ডেটা তৈরি হয়েছে!"))
+                      .catch(() => toast.error("ব্যর্থ হয়েছে"))
                   }
                   disabled={initializing}
                   variant="outline"
@@ -985,7 +1354,7 @@ export default function AdminPage() {
                   {initializing && (
                     <Loader2 size={14} className="animate-spin mr-1" />
                   )}
-                  Initialize Sample Data
+                  নমুনা ডেটা ইনিশিয়ালাইজ করুন
                 </Button>
               </div>
             </TabsContent>

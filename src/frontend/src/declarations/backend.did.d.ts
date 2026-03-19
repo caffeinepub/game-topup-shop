@@ -10,6 +10,22 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export type AdminLevel = { 'none' : null } |
+  { 'superAdmin' : null } |
+  { 'subAdmin' : null };
+export interface Banner {
+  'id' : bigint,
+  'title' : string,
+  'description' : string,
+  'isActive' : boolean,
+  'imageUrl' : string,
+}
+export interface BannerInput {
+  'title' : string,
+  'description' : string,
+  'isActive' : boolean,
+  'imageUrl' : string,
+}
 export interface CreateOrderInput {
   'gameId' : string,
   'productId' : bigint,
@@ -33,6 +49,11 @@ export interface OrderWithProduct {
 export type PaymentMethod = { 'nagad' : null } |
   { 'bkash' : null } |
   { 'rocket' : null };
+export interface PaymentSettings {
+  'nagad' : string,
+  'bkash' : string,
+  'rocket' : string,
+}
 export interface Product {
   'id' : bigint,
   'name' : string,
@@ -69,32 +90,34 @@ export interface Request {
 export type RequestStatus = { 'pending' : null } |
   { 'approved' : null } |
   { 'rejected' : null };
+export interface SiteSettings { 'siteName' : string, 'logoUrl' : string }
 export interface UserProfile { 'name' : string }
-export type AdminLevel = { 'superAdmin' : null } |
-  { 'subAdmin' : null } |
-  { 'none' : null };
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addBanner' : ActorMethod<[BannerInput], bigint>,
   'addProduct' : ActorMethod<[ProductInput], bigint>,
   'approveRechargeRequest' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'creditWallet' : ActorMethod<[Principal, bigint], undefined>,
+  'deleteBanner' : ActorMethod<[bigint], undefined>,
   'deleteProduct' : ActorMethod<[bigint], undefined>,
   'getAllOrders' : ActorMethod<[], Array<OrderWithProduct>>,
   'getAnnouncement' : ActorMethod<[], string>,
+  'getBanners' : ActorMethod<[], Array<Banner>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getFeaturedProducts' : ActorMethod<[], Array<Product>>,
   'getMyAdminLevel' : ActorMethod<[], AdminLevel>,
-  'getUserAdminLevel' : ActorMethod<[Principal], AdminLevel>,
-  'setSubAdmin' : ActorMethod<[Principal, boolean], undefined>,
   'getMyOrders' : ActorMethod<[], Array<OrderWithProduct>>,
+  'getPaymentSettings' : ActorMethod<[], PaymentSettings>,
   'getProducts' : ActorMethod<[], Array<Product>>,
   'getProductsByCategory' : ActorMethod<[string], Array<Product>>,
   'getRechargeRequests' : ActorMethod<[], Array<Request>>,
+  'getSiteSettings' : ActorMethod<[], SiteSettings>,
+  'getUserAdminLevel' : ActorMethod<[Principal], AdminLevel>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getWalletBalance' : ActorMethod<[], bigint>,
   'initializeSampleData' : ActorMethod<[], undefined>,
@@ -103,7 +126,11 @@ export interface _SERVICE {
   'rejectRechargeRequest' : ActorMethod<[bigint], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setAnnouncement' : ActorMethod<[string], undefined>,
+  'setPaymentSettings' : ActorMethod<[PaymentSettings], undefined>,
+  'setSiteSettings' : ActorMethod<[SiteSettings], undefined>,
+  'setSubAdmin' : ActorMethod<[Principal, boolean], undefined>,
   'submitRechargeRequest' : ActorMethod<[RechargeRequestInput], bigint>,
+  'updateBanner' : ActorMethod<[bigint, BannerInput], undefined>,
   'updateOrderStatus' : ActorMethod<[bigint, OrderStatus], undefined>,
   'updateProduct' : ActorMethod<[bigint, ProductInput], undefined>,
 }
