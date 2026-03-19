@@ -62,12 +62,15 @@ actor {
     name : Text;
   };
 
+  public type AdminLevel = { #superAdmin; #subAdmin; #none };
+
   // ------ Storage ------
   let products = Map.empty<Nat, Product.Product>();
   let orders = Map.empty<Nat, Order.Order>();
   let wallets = Map.empty<Principal, Int>();
   let rechargeRequests = Map.empty<Nat, RechargeRequest.Request>();
   let userProfiles = Map.empty<Principal, UserProfile>();
+  let subAdmins = Map.empty<Principal, Bool>();
 
   var nextProductId = 1;
   var nextOrderId = 1;
@@ -77,6 +80,43 @@ actor {
   // Initialize the user system state
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
+
+  // ------ Helper: check if caller can do admin operations ------
+  func isAdminOrSubAdmin(caller : Principal) : Bool {
+    if (AccessControl.isAdmin(accessControlState, caller)) { return true };
+    switch (subAdmins.get(caller)) {
+      case (?true) { true };
+      case (_) { false };
+    };
+  };
+
+  // ------ Sub-Admin Management ------
+  public shared ({ caller }) func setSubAdmin(user : Principal, enable : Bool) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only super admins can assign sub-admins");
+    };
+    if (enable) {
+      subAdmins.add(user, true);
+    } else {
+      subAdmins.remove(user);
+    };
+  };
+
+  public query ({ caller }) func getUserAdminLevel(user : Principal) : async AdminLevel {
+    if (AccessControl.isAdmin(accessControlState, user)) { return #superAdmin };
+    switch (subAdmins.get(user)) {
+      case (?true) { #subAdmin };
+      case (_) { #none };
+    };
+  };
+
+  public query ({ caller }) func getMyAdminLevel() : async AdminLevel {
+    if (AccessControl.isAdmin(accessControlState, caller)) { return #superAdmin };
+    switch (subAdmins.get(caller)) {
+      case (?true) { #subAdmin };
+      case (_) { #none };
+    };
+  };
 
   // ------ User Profile Management ------
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
@@ -100,7 +140,7 @@ actor {
     userProfiles.add(caller, profile);
   };
 
-  // ------ Product Management (Admin Only) -------
+  // ------ Product Management (Admin or SubAdmin) -------
   public type ProductInput = {
     name : Text;
     category : Text;
@@ -112,7 +152,7 @@ actor {
   };
 
   public shared ({ caller }) func addProduct(input : ProductInput) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+    if (not isAdminOrSubAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can add products");
     };
 
@@ -135,7 +175,7 @@ actor {
     productId : Nat,
     input : ProductInput,
   ) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+    if (not isAdminOrSubAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can update products");
     };
 
@@ -158,7 +198,7 @@ actor {
   };
 
   public shared ({ caller }) func deleteProduct(productId : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+    if (not isAdminOrSubAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can delete products");
     };
 
@@ -280,9 +320,9 @@ actor {
     mappedIter.toArray();
   };
 
-  // ------ Order Management (Admin) -------
+  // ------ Order Management (Admin or SubAdmin) -------
   public query ({ caller }) func getAllOrders() : async [OrderWithProduct] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+    if (not isAdminOrSubAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can view all orders");
     };
 
@@ -319,7 +359,7 @@ actor {
     orderId : Nat,
     newStatus : Order.OrderStatus,
   ) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+    if (not isAdminOrSubAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can update order status");
     };
 
@@ -357,7 +397,7 @@ actor {
     user : Principal,
     amount : Int,
   ) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+    if (not isAdminOrSubAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can credit wallets");
     };
 
@@ -384,7 +424,7 @@ actor {
     let allRequests = List.empty<RechargeRequest.Request>();
 
     for ((_, request) in rechargeRequests.entries()) {
-      if (request.user == caller or AccessControl.isAdmin(accessControlState, caller)) {
+      if (request.user == caller or isAdminOrSubAdmin(caller)) {
         allRequests.add(request);
       };
     };
@@ -415,7 +455,7 @@ actor {
   };
 
   public shared ({ caller }) func approveRechargeRequest(requestId : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+    if (not isAdminOrSubAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can approve recharge requests");
     };
 
@@ -443,7 +483,7 @@ actor {
   };
 
   public shared ({ caller }) func rejectRechargeRequest(requestId : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+    if (not isAdminOrSubAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can reject recharge requests");
     };
 
@@ -464,7 +504,7 @@ actor {
     };
   };
 
-  // ------ Announcement (Admin Only) -------
+  // ------ Announcement (Super Admin Only) -------
   public shared ({ caller }) func setAnnouncement(text : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can set announcements");
@@ -562,4 +602,3 @@ actor {
     ignore await addProduct(luckyBonus);
   };
 };
-

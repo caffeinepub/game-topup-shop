@@ -162,6 +162,11 @@ export enum UserRole {
     user = "user",
     guest = "guest"
 }
+export enum AdminLevel {
+    superAdmin = "superAdmin",
+    subAdmin = "subAdmin",
+    none = "none"
+}
 export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
     addProduct(input: ProductInput): Promise<bigint>;
@@ -174,6 +179,9 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getFeaturedProducts(): Promise<Array<Product>>;
+    getMyAdminLevel(): Promise<AdminLevel>;
+    getUserAdminLevel(user: Principal): Promise<AdminLevel>;
+    setSubAdmin(user: Principal, enable: boolean): Promise<void>;
     getMyOrders(): Promise<Array<OrderWithProduct>>;
     getProducts(): Promise<Array<Product>>;
     getProductsByCategory(category: string): Promise<Array<Product>>;
@@ -556,6 +564,19 @@ export class Backend implements backendInterface {
             const result = await this.actor.updateProduct(arg0, arg1);
             return result;
         }
+    }
+    async getMyAdminLevel(): Promise<AdminLevel> {
+        const result = await this.actor.getMyAdminLevel();
+        const key = Object.keys(result)[0];
+        return key === "superAdmin" ? AdminLevel.superAdmin : key === "subAdmin" ? AdminLevel.subAdmin : AdminLevel.none;
+    }
+    async getUserAdminLevel(arg0: Principal): Promise<AdminLevel> {
+        const result = await this.actor.getUserAdminLevel(arg0);
+        const key = Object.keys(result)[0];
+        return key === "superAdmin" ? AdminLevel.superAdmin : key === "subAdmin" ? AdminLevel.subAdmin : AdminLevel.none;
+    }
+    async setSubAdmin(arg0: Principal, arg1: boolean): Promise<void> {
+        return this.actor.setSubAdmin(arg0, arg1);
     }
 }
 function from_candid_OrderStatus_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _OrderStatus): OrderStatus {

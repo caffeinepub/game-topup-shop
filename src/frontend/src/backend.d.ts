@@ -80,6 +80,11 @@ export enum UserRole {
     user = "user",
     guest = "guest"
 }
+export enum AdminLevel {
+    superAdmin = "superAdmin",
+    subAdmin = "subAdmin",
+    none = "none"
+}
 export interface backendInterface {
     addProduct(input: ProductInput): Promise<bigint>;
     approveRechargeRequest(requestId: bigint): Promise<void>;
@@ -91,6 +96,8 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getFeaturedProducts(): Promise<Array<Product>>;
+    getMyAdminLevel(): Promise<AdminLevel>;
+    getUserAdminLevel(user: Principal): Promise<AdminLevel>;
     getMyOrders(): Promise<Array<OrderWithProduct>>;
     getProducts(): Promise<Array<Product>>;
     getProductsByCategory(category: string): Promise<Array<Product>>;
@@ -103,6 +110,7 @@ export interface backendInterface {
     rejectRechargeRequest(requestId: bigint): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setAnnouncement(text: string): Promise<void>;
+    setSubAdmin(user: Principal, enable: boolean): Promise<void>;
     submitRechargeRequest(input: RechargeRequestInput): Promise<bigint>;
     updateOrderStatus(orderId: bigint, newStatus: OrderStatus): Promise<void>;
     updateProduct(productId: bigint, input: ProductInput): Promise<void>;

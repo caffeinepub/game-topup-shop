@@ -1,35 +1,33 @@
 # Game Topup Shop
 
 ## Current State
-- Full-stack game topup platform with products, orders, wallet, admin panel
-- Add Money page lets users fill a form (amount, payment method, transaction ID) but only shows a toast -- recharge requests are NOT saved to the backend
-- Admin panel has Products, Orders, Settings tabs -- no recharge request management
-- Backend has creditWallet (admin manually credits) but no RechargeRequest entity
+Admin panel has a Members tab where the Super Admin can search users by Principal ID and change their role (Admin/User/Guest). There is no sub-admin role -- only full admins (who have all access) and regular users.
 
 ## Requested Changes (Diff)
 
 ### Add
-- RechargeRequest type: { id, userId, amount, paymentMethod, transactionId, status (#pending | #approved | #rejected), createdAt }
-- submitRechargeRequest(amount, paymentMethod, transactionId) -- user submits a request, saves to backend
-- getMyRechargeRequests() -- user sees their own requests with status
-- getAllRechargeRequests() -- admin sees all requests
-- approveRechargeRequest(id) -- admin approves, auto-credits user wallet with request amount
-- rejectRechargeRequest(id) -- admin rejects, sets status to rejected
-- "Recharge" tab in Admin Panel showing all requests with Approve/Reject buttons
-- AddMoneyPage: on submit, call backend submitRechargeRequest instead of just showing a toast
-- AddMoneyPage / ProfilePage: show user's own recharge request history with status badges
+- New `subAdmin` concept tracked in backend via a `subAdmins` map
+- Backend function `setSubAdmin(user, bool)` -- only Super Admin can call
+- Backend function `getUserAdminType(user)` -- returns `#superAdmin`, `#subAdmin`, or `#none`
+- Backend functions for products, orders, recharge now also allow subAdmins
+- In AdminPage Members tab: Super Admin can assign 'Sub-Admin' role to any user
+- Sub-Admin sees only Products, Orders, Recharge tabs in admin panel
+- Super Admin sees all tabs: Products, Offers/Announcements, Orders, Recharge, Members
 
 ### Modify
-- AddMoneyPage: wire form submission to backend
-- AdminPage: add new "Recharge" tab
+- Backend: `addProduct`, `updateProduct`, `deleteProduct`, `getAllOrders`, `updateOrderStatus`, `approveRechargeRequest`, `rejectRechargeRequest`, `getRechargeRequests` (admin view) -- now also allow subAdmins
+- AdminPage: conditionally render tabs based on whether user is superAdmin or subAdmin
+- App.tsx/AdminPage access check: allow subAdmins to access `/admin` route
+- Members tab role assignment: add 'Sub-Admin' option
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Add RechargeRequest type and storage to main.mo
-2. Add submitRechargeRequest, getMyRechargeRequests, getAllRechargeRequests, approveRechargeRequest, rejectRechargeRequest functions
-3. Regenerate backend.d.ts bindings
-4. Update useQueries.ts hooks for new APIs
-5. Update AddMoneyPage to call backend on submit and show history
-6. Update AdminPage to add Recharge tab with approve/reject actions
+1. Add `subAdmins` map in backend, add `setSubAdmin` and `getUserAdminType` public functions
+2. Update permission checks in product/order/recharge backend functions to allow subAdmins
+3. Update `backend.d.ts` with new functions and types
+4. In AdminPage, call `getUserAdminType` on mount to determine admin level
+5. Conditionally show tabs: subAdmin gets Products+Orders+Recharge; superAdmin gets all
+6. Add Sub-Admin option in Members tab role management
+7. Update App.tsx admin route guard to allow subAdmins

@@ -29,13 +29,15 @@ import {
   Plus,
   Search,
   Settings,
+  ShieldCheck,
+  ShieldOff,
   Trash2,
   User,
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { OrderStatus, RequestStatus, UserRole } from "../backend.d";
+import { AdminLevel, OrderStatus, RequestStatus, UserRole } from "../backend.d";
 import type { Product, ProductInput } from "../backend.d";
 import {
   useAddProduct,
@@ -47,9 +49,11 @@ import {
   useDeleteProduct,
   useInitializeSampleData,
   useLookupMember,
+  useMyAdminLevel,
   useProducts,
   useRejectRechargeRequest,
   useSetAnnouncement,
+  useSetSubAdmin,
   useUpdateOrderStatus,
   useUpdateProduct,
 } from "../hooks/useQueries";
@@ -125,7 +129,32 @@ function MemberCodeBadge({ principalId }: { principalId: string }) {
   );
 }
 
+function AdminLevelBadge({ level }: { level: AdminLevel }) {
+  if (level === AdminLevel.superAdmin) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+        <ShieldCheck size={11} /> সুপার অ্যাডমিন
+      </span>
+    );
+  }
+  if (level === AdminLevel.subAdmin) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+        <ShieldCheck size={11} /> সাব-অ্যাডমিন
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+      <User size={11} /> সাধারণ ইউজার
+    </span>
+  );
+}
+
 export default function AdminPage() {
+  const { data: myAdminLevel } = useMyAdminLevel();
+  const isSuperAdmin = myAdminLevel === AdminLevel.superAdmin;
+
   const { data: products } = useProducts();
   const { data: orders } = useAllOrders();
   const { data: rechargeRequests } = useAllRechargeRequests();
@@ -142,6 +171,8 @@ export default function AdminPage() {
   const { mutateAsync: rejectRequest } = useRejectRechargeRequest();
   const { mutateAsync: lookupMember, isPending: lookingUp } = useLookupMember();
   const { mutateAsync: assignRole, isPending: assigningRole } = useAssignRole();
+  const { mutateAsync: setSubAdmin, isPending: settingSubAdmin } =
+    useSetSubAdmin();
 
   const [productForm, setProductForm] = useState<ProductInput>(emptyProduct);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -155,6 +186,7 @@ export default function AdminPage() {
   const [memberResult, setMemberResult] = useState<{
     principalId: string;
     profile: { name: string } | null;
+    adminLevel: AdminLevel;
   } | null>(null);
   const [memberError, setMemberError] = useState("");
   const [newRole, setNewRole] = useState<UserRole>(UserRole.user);
@@ -252,6 +284,7 @@ export default function AdminPage() {
       setMemberResult({
         principalId: memberPrincipal.trim(),
         profile: result.profile,
+        adminLevel: result.adminLevel,
       });
     } catch {
       setMemberError("ইনভ্যালিড Principal ID বা মেম্বার পাওয়া যায়নি");
@@ -271,20 +304,59 @@ export default function AdminPage() {
     }
   };
 
+  const handleToggleSubAdmin = async (enable: boolean) => {
+    if (!memberResult) return;
+    try {
+      await setSubAdmin({
+        user: Principal.fromText(memberResult.principalId),
+        enable,
+      });
+      setMemberResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              adminLevel: enable ? AdminLevel.subAdmin : AdminLevel.none,
+            }
+          : null,
+      );
+      toast.success(
+        enable
+          ? "সাব-অ্যাডমিন হিসেবে যোগ করা হয়েছে!"
+          : "সাব-অ্যাডমিন পদ থেকে সরানো হয়েছে।",
+      );
+    } catch {
+      toast.error("আপডেট ব্যর্থ হয়েছে");
+    }
+  };
+
+  // Tab count for grid
+  const tabCount = isSuperAdmin ? 5 : 3;
+
   return (
     <div data-ocid="admin.page" className="min-h-screen bg-gray-50">
       <header className="bg-gray-900 text-white px-4 py-4 flex items-center gap-3">
         <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
           <Settings size={16} />
         </div>
-        <h1 className="font-black text-base">Admin Panel</h1>
+        <div>
+          <h1 className="font-black text-base">Admin Panel</h1>
+          {myAdminLevel && (
+            <p className="text-[10px] text-gray-400">
+              {myAdminLevel === AdminLevel.superAdmin
+                ? "সুপার অ্যাডমিন"
+                : myAdminLevel === AdminLevel.subAdmin
+                  ? "সাব-অ্যাডমিন"
+                  : ""}
+            </p>
+          )}
+        </div>
       </header>
 
       <div className="px-4 py-4">
         <Tabs defaultValue="products">
           <TabsList
             data-ocid="admin.tab"
-            className="w-full mb-4 bg-white border grid grid-cols-5"
+            className={`w-full mb-4 bg-white border grid grid-cols-${tabCount}`}
           >
             <TabsTrigger value="products" className="text-[11px] px-1">
               Products
@@ -295,12 +367,16 @@ export default function AdminPage() {
             <TabsTrigger value="recharge" className="text-[11px] px-1">
               Recharge
             </TabsTrigger>
-            <TabsTrigger value="members" className="text-[11px] px-1">
-              Members
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="text-[11px] px-1">
-              Settings
-            </TabsTrigger>
+            {isSuperAdmin && (
+              <TabsTrigger value="members" className="text-[11px] px-1">
+                Members
+              </TabsTrigger>
+            )}
+            {isSuperAdmin && (
+              <TabsTrigger value="settings" className="text-[11px] px-1">
+                Settings
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Products Tab */}
@@ -533,14 +609,15 @@ export default function AdminPage() {
                     ৳ {order.totalPrice.toString()}
                   </span>
                 </div>
-                {/* Member code row */}
                 <div className="flex items-center gap-1.5 mb-2">
                   <span className="text-[11px] text-gray-400">মেম্বার:</span>
                   <MemberCodeBadge principalId={order.userId.toString()} />
                 </div>
                 <div className="flex items-center gap-2">
                   <span
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColors[order.status]}`}
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      statusColors[order.status]
+                    }`}
                   >
                     {order.status}
                   </span>
@@ -656,212 +733,263 @@ export default function AdminPage() {
             ))}
           </TabsContent>
 
-          {/* Members Tab */}
-          <TabsContent value="members" className="space-y-4">
-            <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-              <h3 className="font-bold text-sm text-gray-800 flex items-center gap-2">
-                <User size={15} className="text-orange-500" />
-                মেম্বার সার্চ
-              </h3>
-              <p className="text-xs text-gray-500">
-                ইউজারের Principal ID দিয়ে তার প্রোফাইল ও ৬ সংখ্যার কোড দেখুন।
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  data-ocid="admin.member.input"
-                  placeholder="Principal ID (যেমন: xxxxx-xxxxx-...)"
-                  value={memberPrincipal}
-                  onChange={(e) => {
-                    setMemberPrincipal(e.target.value);
-                    setMemberError("");
-                    setMemberResult(null);
-                  }}
-                  className="text-xs"
-                />
-                <Button
-                  data-ocid="admin.member.search_button"
-                  onClick={handleMemberLookup}
-                  disabled={lookingUp}
-                  className="bg-orange-500 hover:bg-orange-600 text-white shrink-0"
-                  size="sm"
-                >
-                  {lookingUp ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Search size={14} />
-                  )}
-                </Button>
+          {/* Members Tab -- Super Admin only */}
+          {isSuperAdmin && (
+            <TabsContent value="members" className="space-y-4">
+              <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+                <h3 className="font-bold text-sm text-gray-800 flex items-center gap-2">
+                  <User size={15} className="text-orange-500" />
+                  মেম্বার সার্চ
+                </h3>
+                <p className="text-xs text-gray-500">
+                  ইউজারের Principal ID দিয়ে তার প্রোফাইল দেখুন এবং রোল পরিবর্তন করুন।
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    data-ocid="admin.member.input"
+                    placeholder="Principal ID (যেমন: xxxxx-xxxxx-...)"
+                    value={memberPrincipal}
+                    onChange={(e) => {
+                      setMemberPrincipal(e.target.value);
+                      setMemberError("");
+                      setMemberResult(null);
+                    }}
+                    className="text-xs"
+                  />
+                  <Button
+                    data-ocid="admin.member.search_button"
+                    onClick={handleMemberLookup}
+                    disabled={lookingUp}
+                    className="bg-orange-500 hover:bg-orange-600 text-white shrink-0"
+                    size="sm"
+                  >
+                    {lookingUp ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Search size={14} />
+                    )}
+                  </Button>
+                </div>
+                {memberError && (
+                  <p className="text-xs text-red-500">{memberError}</p>
+                )}
               </div>
-              {memberError && (
-                <p className="text-xs text-red-500">{memberError}</p>
-              )}
-            </div>
 
-            {memberResult && (
-              <div
-                data-ocid="admin.member.result"
-                className="bg-white rounded-xl border border-gray-100 p-4 space-y-4"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                    <User size={18} className="text-orange-500" />
+              {memberResult && (
+                <div
+                  data-ocid="admin.member.result"
+                  className="bg-white rounded-xl border border-gray-100 p-4 space-y-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                      <User size={18} className="text-orange-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm text-gray-800">
+                        {memberResult.profile?.name || "নাম নেই"}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[11px] text-gray-400">কোড:</span>
+                        <span className="font-mono font-black text-orange-600 text-sm tracking-widest">
+                          {principalToCode(memberResult.principalId)}
+                        </span>
+                      </div>
+                    </div>
+                    <AdminLevelBadge level={memberResult.adminLevel} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm text-gray-800">
-                      {memberResult.profile?.name || "নাম নেই"}
-                    </p>
-                    {/* 6-digit code prominently */}
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-[11px] text-gray-400">
-                        মেম্বার কোড:
+
+                  <div className="grid grid-cols-1 gap-2 text-xs">
+                    <div className="flex items-center justify-between bg-orange-50 rounded-lg px-3 py-2">
+                      <span className="text-gray-500 flex items-center gap-1">
+                        <Hash size={11} /> মেম্বার কোড
                       </span>
-                      <span className="font-mono font-black text-orange-600 text-sm tracking-widest">
+                      <span className="font-mono font-black text-orange-600 text-base tracking-widest">
                         {principalToCode(memberResult.principalId)}
                       </span>
                     </div>
+                    <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                      <span className="text-gray-500">বর্তমান স্ট্যাটাস</span>
+                      <AdminLevelBadge level={memberResult.adminLevel} />
+                    </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 gap-2 text-xs">
-                  <div className="flex items-center justify-between bg-orange-50 rounded-lg px-3 py-2">
-                    <span className="text-gray-500 flex items-center gap-1">
-                      <Hash size={11} /> মেম্বার কোড
-                    </span>
-                    <span className="font-mono font-black text-orange-600 text-base tracking-widest">
-                      {principalToCode(memberResult.principalId)}
-                    </span>
+                  {/* Sub-Admin Management */}
+                  <div className="border border-blue-100 rounded-xl p-3 bg-blue-50 space-y-2">
+                    <p className="text-xs font-bold text-blue-800 flex items-center gap-1">
+                      <ShieldCheck size={13} /> সাব-অ্যাডমিন ম্যানেজমেন্ট
+                    </p>
+                    <p className="text-[11px] text-blue-600">
+                      সাব-অ্যাডমিন শুধু Products, Orders, ও Recharge ম্যানেজ করতে পারবে।
+                    </p>
+                    {memberResult.adminLevel === AdminLevel.subAdmin ? (
+                      <Button
+                        data-ocid="admin.member.remove_subadmin_button"
+                        size="sm"
+                        onClick={() => handleToggleSubAdmin(false)}
+                        disabled={settingSubAdmin}
+                        className="w-full bg-red-500 hover:bg-red-600 text-white text-xs h-8"
+                      >
+                        {settingSubAdmin ? (
+                          <Loader2 size={12} className="animate-spin mr-1" />
+                        ) : (
+                          <ShieldOff size={13} className="mr-1" />
+                        )}
+                        সাব-অ্যাডমিন থেকে সরান
+                      </Button>
+                    ) : memberResult.adminLevel === AdminLevel.none ? (
+                      <Button
+                        data-ocid="admin.member.make_subadmin_button"
+                        size="sm"
+                        onClick={() => handleToggleSubAdmin(true)}
+                        disabled={settingSubAdmin}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
+                      >
+                        {settingSubAdmin ? (
+                          <Loader2 size={12} className="animate-spin mr-1" />
+                        ) : (
+                          <ShieldCheck size={13} className="mr-1" />
+                        )}
+                        সাব-অ্যাডমিন বানান
+                      </Button>
+                    ) : (
+                      <p className="text-[11px] text-purple-600 font-semibold">
+                        এই ইউজার ইতিমধ্যে সুপার অ্যাডমিন।
+                      </p>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                    <span className="text-gray-500">প্রোফাইল</span>
-                    <span className="font-semibold text-gray-700">
-                      {memberResult.profile ? "সেট আছে" : "সেট নেই"}
-                    </span>
-                  </div>
-                </div>
 
-                {/* Role assignment */}
-                <div className="border-t pt-3 space-y-2">
-                  <p className="text-xs font-semibold text-gray-700">
-                    রোল পরিবর্তন করুন
-                  </p>
-                  <div className="flex gap-2">
-                    <Select
-                      value={newRole}
-                      onValueChange={(v) => setNewRole(v as UserRole)}
-                    >
-                      <SelectTrigger className="h-8 text-xs flex-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={UserRole.user} className="text-xs">
-                          সাধারণ ইউজার
-                        </SelectItem>
-                        <SelectItem value={UserRole.admin} className="text-xs">
-                          অ্যাডমিন
-                        </SelectItem>
-                        <SelectItem value={UserRole.guest} className="text-xs">
-                          গেস্ট
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      data-ocid="admin.member.assign_role_button"
-                      size="sm"
-                      onClick={handleAssignRole}
-                      disabled={assigningRole}
-                      className="bg-orange-500 hover:bg-orange-600 text-white text-xs h-8"
-                    >
-                      {assigningRole && (
-                        <Loader2 size={12} className="animate-spin mr-1" />
-                      )}
-                      আপডেট
-                    </Button>
+                  {/* Role assignment */}
+                  <div className="border-t pt-3 space-y-2">
+                    <p className="text-xs font-semibold text-gray-700">
+                      সিস্টেম রোল পরিবর্তন করুন
+                    </p>
+                    <div className="flex gap-2">
+                      <Select
+                        value={newRole}
+                        onValueChange={(v) => setNewRole(v as UserRole)}
+                      >
+                        <SelectTrigger className="h-8 text-xs flex-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={UserRole.user} className="text-xs">
+                            সাধারণ ইউজার
+                          </SelectItem>
+                          <SelectItem
+                            value={UserRole.admin}
+                            className="text-xs"
+                          >
+                            সুপার অ্যাডমিন
+                          </SelectItem>
+                          <SelectItem
+                            value={UserRole.guest}
+                            className="text-xs"
+                          >
+                            গেস্ট
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        data-ocid="admin.member.assign_role_button"
+                        size="sm"
+                        onClick={handleAssignRole}
+                        disabled={assigningRole}
+                        className="bg-orange-500 hover:bg-orange-600 text-white text-xs h-8"
+                      >
+                        {assigningRole && (
+                          <Loader2 size={12} className="animate-spin mr-1" />
+                        )}
+                        আপডেট
+                      </Button>
+                    </div>
                   </div>
                 </div>
+              )}
+            </TabsContent>
+          )}
+
+          {/* Settings Tab -- Super Admin only */}
+          {isSuperAdmin && (
+            <TabsContent value="settings" className="space-y-4">
+              {/* Announcement */}
+              <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+                <h3 className="font-bold text-sm text-gray-800">
+                  📢 Announcement
+                </h3>
+                <Textarea
+                  data-ocid="admin.announcement.textarea"
+                  value={announcement}
+                  onChange={(e) => setAnnouncementText(e.target.value)}
+                  placeholder="Enter announcement text..."
+                  rows={3}
+                />
+                <Button
+                  data-ocid="admin.announcement.submit_button"
+                  onClick={handleSetAnnouncement}
+                  disabled={settingAnn}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  {settingAnn && (
+                    <Loader2 size={14} className="animate-spin mr-1" />
+                  )}
+                  Update Announcement
+                </Button>
               </div>
-            )}
-          </TabsContent>
 
-          {/* Settings Tab */}
-          <TabsContent value="settings" className="space-y-4">
-            {/* Announcement */}
-            <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-              <h3 className="font-bold text-sm text-gray-800">
-                📢 Announcement
-              </h3>
-              <Textarea
-                data-ocid="admin.announcement.textarea"
-                value={announcement}
-                onChange={(e) => setAnnouncementText(e.target.value)}
-                placeholder="Enter announcement text..."
-                rows={3}
-              />
-              <Button
-                data-ocid="admin.announcement.submit_button"
-                onClick={handleSetAnnouncement}
-                disabled={settingAnn}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-              >
-                {settingAnn && (
-                  <Loader2 size={14} className="animate-spin mr-1" />
-                )}
-                Update Announcement
-              </Button>
-            </div>
+              {/* Credit Wallet */}
+              <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+                <h3 className="font-bold text-sm text-gray-800">
+                  💰 Credit Wallet
+                </h3>
+                <Input
+                  data-ocid="admin.credit.input"
+                  placeholder="User Principal ID"
+                  value={creditPrincipal}
+                  onChange={(e) => setCreditPrincipal(e.target.value)}
+                />
+                <Input
+                  placeholder="Amount (Tk)"
+                  type="number"
+                  value={creditAmount}
+                  onChange={(e) => setCreditAmount(e.target.value)}
+                />
+                <Button
+                  data-ocid="admin.credit.submit_button"
+                  onClick={handleCreditWallet}
+                  disabled={crediting}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white"
+                >
+                  {crediting && (
+                    <Loader2 size={14} className="animate-spin mr-1" />
+                  )}
+                  Credit Wallet
+                </Button>
+              </div>
 
-            {/* Credit Wallet */}
-            <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-              <h3 className="font-bold text-sm text-gray-800">
-                💰 Credit Wallet
-              </h3>
-              <Input
-                data-ocid="admin.credit.input"
-                placeholder="User Principal ID"
-                value={creditPrincipal}
-                onChange={(e) => setCreditPrincipal(e.target.value)}
-              />
-              <Input
-                placeholder="Amount (Tk)"
-                type="number"
-                value={creditAmount}
-                onChange={(e) => setCreditAmount(e.target.value)}
-              />
-              <Button
-                data-ocid="admin.credit.submit_button"
-                onClick={handleCreditWallet}
-                disabled={crediting}
-                className="w-full bg-green-500 hover:bg-green-600 text-white"
-              >
-                {crediting && (
-                  <Loader2 size={14} className="animate-spin mr-1" />
-                )}
-                Credit Wallet
-              </Button>
-            </div>
-
-            {/* Initialize Data */}
-            <div className="bg-white rounded-xl border border-gray-100 p-4">
-              <h3 className="font-bold text-sm text-gray-800 mb-3">
-                🔄 Sample Data
-              </h3>
-              <Button
-                data-ocid="admin.init.button"
-                onClick={() =>
-                  initData()
-                    .then(() => toast.success("Sample data initialized!"))
-                    .catch(() => toast.error("Failed"))
-                }
-                disabled={initializing}
-                variant="outline"
-                className="w-full border-orange-200 text-orange-600 hover:bg-orange-50"
-              >
-                {initializing && (
-                  <Loader2 size={14} className="animate-spin mr-1" />
-                )}
-                Initialize Sample Data
-              </Button>
-            </div>
-          </TabsContent>
+              {/* Initialize Data */}
+              <div className="bg-white rounded-xl border border-gray-100 p-4">
+                <h3 className="font-bold text-sm text-gray-800 mb-3">
+                  🔄 Sample Data
+                </h3>
+                <Button
+                  data-ocid="admin.init.button"
+                  onClick={() =>
+                    initData()
+                      .then(() => toast.success("Sample data initialized!"))
+                      .catch(() => toast.error("Failed"))
+                  }
+                  disabled={initializing}
+                  variant="outline"
+                  className="w-full border-orange-200 text-orange-600 hover:bg-orange-50"
+                >
+                  {initializing && (
+                    <Loader2 size={14} className="animate-spin mr-1" />
+                  )}
+                  Initialize Sample Data
+                </Button>
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

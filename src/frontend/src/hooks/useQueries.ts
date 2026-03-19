@@ -93,6 +93,18 @@ export function useIsAdmin() {
   });
 }
 
+export function useMyAdminLevel() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["myAdminLevel"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getMyAdminLevel();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
 export function useUserProfile() {
   const { actor, isFetching } = useActor();
   return useQuery({
@@ -314,8 +326,11 @@ export function useLookupMember() {
   return useMutation({
     mutationFn: async (principal: Principal) => {
       if (!actor) throw new Error("Not connected");
-      const profile = await actor.getUserProfile(principal);
-      return { profile };
+      const [profile, adminLevel] = await Promise.all([
+        actor.getUserProfile(principal),
+        actor.getUserAdminLevel(principal),
+      ]);
+      return { profile, adminLevel };
     },
   });
 }
@@ -329,6 +344,19 @@ export function useAssignRole() {
     }: { user: Principal; role: import("../backend.d").UserRole }) => {
       if (!actor) throw new Error("Not connected");
       return actor.assignCallerUserRole(user, role);
+    },
+  });
+}
+
+export function useSetSubAdmin() {
+  const { actor } = useActor();
+  return useMutation({
+    mutationFn: async ({
+      user,
+      enable,
+    }: { user: Principal; enable: boolean }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.setSubAdmin(user, enable);
     },
   });
 }

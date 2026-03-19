@@ -70,6 +70,9 @@ export type RequestStatus = { 'pending' : null } |
   { 'approved' : null } |
   { 'rejected' : null };
 export interface UserProfile { 'name' : string }
+export type AdminLevel = { 'superAdmin' : null } |
+  { 'subAdmin' : null } |
+  { 'none' : null };
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
@@ -85,6 +88,9 @@ export interface _SERVICE {
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getFeaturedProducts' : ActorMethod<[], Array<Product>>,
+  'getMyAdminLevel' : ActorMethod<[], AdminLevel>,
+  'getUserAdminLevel' : ActorMethod<[Principal], AdminLevel>,
+  'setSubAdmin' : ActorMethod<[Principal, boolean], undefined>,
   'getMyOrders' : ActorMethod<[], Array<OrderWithProduct>>,
   'getProducts' : ActorMethod<[], Array<Product>>,
   'getProductsByCategory' : ActorMethod<[string], Array<Product>>,
