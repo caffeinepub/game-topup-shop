@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, LogIn, LogOut, Settings } from "lucide-react";
+import { Hash, Loader2, LogIn, LogOut, Settings } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import {
   useSaveProfile,
   useUserProfile,
 } from "../hooks/useQueries";
+import { principalToCode } from "../utils/memberCode";
 
 interface ProfilePageProps {
   onNavigate: (page: PageType) => void;
@@ -29,6 +30,7 @@ export default function ProfilePage({ onNavigate }: ProfilePageProps) {
   const [editing, setEditing] = useState(false);
 
   const principal = identity?.getPrincipal().toString() ?? "";
+  const memberCode = principal ? principalToCode(principal) : "";
   const initials = profile?.name
     ? profile.name.slice(0, 2).toUpperCase()
     : principal.slice(0, 2).toUpperCase() || "GU";
@@ -87,9 +89,6 @@ export default function ProfilePage({ onNavigate }: ProfilePageProps) {
             <p className="font-bold text-gray-800 text-lg">
               {profile?.name ?? "User"}
             </p>
-            <p className="text-xs text-gray-500 truncate">
-              {principal.slice(0, 20)}...
-            </p>
             {isAdmin && (
               <span className="inline-block mt-1 bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                 Admin
@@ -97,6 +96,26 @@ export default function ProfilePage({ onNavigate }: ProfilePageProps) {
             )}
           </div>
         </motion.div>
+
+        {/* Member Code Card */}
+        {memberCode && (
+          <div className="bg-white rounded-xl border border-orange-100 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                <Hash size={15} className="text-orange-500" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">আপনার মেম্বার কোড</p>
+                <p className="font-mono font-black text-orange-600 text-xl tracking-widest">
+                  {memberCode}
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] text-gray-400 bg-gray-100 rounded px-2 py-1">
+              ইউনিক কোড
+            </span>
+          </div>
+        )}
 
         {editing ? (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">

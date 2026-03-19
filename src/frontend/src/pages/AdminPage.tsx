@@ -24,6 +24,7 @@ import {
   CheckCircle2,
   Clock,
   Edit3,
+  Hash,
   Loader2,
   Plus,
   Search,
@@ -52,6 +53,7 @@ import {
   useUpdateOrderStatus,
   useUpdateProduct,
 } from "../hooks/useQueries";
+import { principalToCode } from "../utils/memberCode";
 
 const emptyProduct: ProductInput = {
   name: "",
@@ -109,6 +111,16 @@ function RechargeStatusBadge({ status }: { status: RequestStatus }) {
   return (
     <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
       <XCircle size={11} /> বাতিল
+    </span>
+  );
+}
+
+function MemberCodeBadge({ principalId }: { principalId: string }) {
+  const code = principalToCode(principalId);
+  return (
+    <span className="inline-flex items-center gap-1 bg-orange-100 text-orange-700 font-mono font-bold text-xs px-2 py-0.5 rounded-full">
+      <Hash size={10} />
+      {code}
     </span>
   );
 }
@@ -521,6 +533,11 @@ export default function AdminPage() {
                     ৳ {order.totalPrice.toString()}
                   </span>
                 </div>
+                {/* Member code row */}
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-[11px] text-gray-400">মেম্বার:</span>
+                  <MemberCodeBadge principalId={order.userId.toString()} />
+                </div>
                 <div className="flex items-center gap-2">
                   <span
                     className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColors[order.status]}`}
@@ -610,11 +627,9 @@ export default function AdminPage() {
                       {req.transactionId}
                     </span>
                   </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-400">User: </span>
-                    <span className="font-mono text-gray-600 text-[11px]">
-                      {req.user.toString().slice(0, 8)}...
-                    </span>
+                  <div className="col-span-2 flex items-center gap-1.5">
+                    <span className="text-gray-400">মেম্বার: </span>
+                    <MemberCodeBadge principalId={req.user.toString()} />
                   </div>
                 </div>
                 {req.status === RequestStatus.pending && (
@@ -649,7 +664,7 @@ export default function AdminPage() {
                 মেম্বার সার্চ
               </h3>
               <p className="text-xs text-gray-500">
-                ইউজারের Principal ID দিয়ে তার প্রোফাইল ও তথ্য দেখুন।
+                ইউজারের Principal ID দিয়ে তার প্রোফাইল ও ৬ সংখ্যার কোড দেখুন।
               </p>
               <div className="flex gap-2">
                 <Input
@@ -695,13 +710,27 @@ export default function AdminPage() {
                     <p className="font-bold text-sm text-gray-800">
                       {memberResult.profile?.name || "নাম নেই"}
                     </p>
-                    <p className="text-[11px] text-gray-400 font-mono truncate">
-                      {memberResult.principalId}
-                    </p>
+                    {/* 6-digit code prominently */}
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[11px] text-gray-400">
+                        মেম্বার কোড:
+                      </span>
+                      <span className="font-mono font-black text-orange-600 text-sm tracking-widest">
+                        {principalToCode(memberResult.principalId)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-2 text-xs">
+                  <div className="flex items-center justify-between bg-orange-50 rounded-lg px-3 py-2">
+                    <span className="text-gray-500 flex items-center gap-1">
+                      <Hash size={11} /> মেম্বার কোড
+                    </span>
+                    <span className="font-mono font-black text-orange-600 text-base tracking-widest">
+                      {principalToCode(memberResult.principalId)}
+                    </span>
+                  </div>
                   <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                     <span className="text-gray-500">প্রোফাইল</span>
                     <span className="font-semibold text-gray-700">
