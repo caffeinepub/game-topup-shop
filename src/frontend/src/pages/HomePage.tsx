@@ -127,7 +127,7 @@ export default function HomePage({ onNavigate: _onNavigate }: HomePageProps) {
         {isLoading ? (
           <div
             data-ocid="products.loading_state"
-            className="grid grid-cols-3 gap-2"
+            className="grid grid-cols-2 sm:grid-cols-3 gap-3"
           >
             {SKELETON_KEYS.map((k) => (
               <div
@@ -146,7 +146,7 @@ export default function HomePage({ onNavigate: _onNavigate }: HomePageProps) {
           </div>
         ) : (
           <motion.div
-            className="grid grid-cols-3 gap-2"
+            className="grid grid-cols-2 sm:grid-cols-3 gap-3"
             initial="hidden"
             animate="visible"
             variants={{

@@ -21,7 +21,7 @@ export default function ProductCard({
   onClick,
 }: ProductCardProps) {
   const gradient = gradients[index % gradients.length];
-  const hasImage = product.imageUrl?.startsWith("/");
+  const hasImage = product.imageUrl && product.imageUrl.trim() !== "";
 
   return (
     <button
@@ -38,14 +38,23 @@ export default function ProductCard({
             src={product.imageUrl}
             alt={product.name}
             className="w-full h-full object-cover"
+            onError={(e) => {
+              // fallback: hide image and show initial
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+              const fallback = e.currentTarget
+                .nextElementSibling as HTMLElement | null;
+              if (fallback) fallback.style.display = "flex";
+            }}
           />
-        ) : (
-          <div className="text-white text-3xl font-black opacity-80">
-            {product.name.charAt(0)}
-          </div>
-        )}
+        ) : null}
+        <div
+          className="text-white text-3xl font-black opacity-80 w-full h-full items-center justify-center"
+          style={{ display: hasImage ? "none" : "flex" }}
+        >
+          {product.name.charAt(0)}
+        </div>
         {product.isFeatured && (
-          <div className="absolute top-1 right-1 bg-yellow-400 text-yellow-900 text-[8px] font-bold px-1.5 py-0.5 rounded-full">
+          <div className="absolute top-1 right-1 bg-yellow-400 text-yellow-900 text-[8px] font-bold px-1.5 py-0.5 rounded-full z-10">
             HOT
           </div>
         )}

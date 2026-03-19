@@ -399,8 +399,52 @@ actor {
       isFeatured = true;
     };
 
+    let specialDiscount : ProductInput = {
+      name = "Special Discount Offer";
+      category = "Special Offer";
+      description = "Super discount offer on selected game items";
+      price = 80;
+      imageUrl = "/assets/generated/special-discount-offer.dim_400x400.jpg";
+      isActive = true;
+      isFeatured = true;
+    };
+
+    let ff100Like : ProductInput = {
+      name = "Free Fire - 100 Like প্রতিদিন ১ বার";
+      category = "Free Fire";
+      description = "Get 100 Free Fire likes daily, 1 time per ID";
+      price = 50;
+      imageUrl = "/assets/generated/ff-100-like.dim_400x400.jpg";
+      isActive = true;
+      isFeatured = true;
+    };
+
+    let mysteryBox : ProductInput = {
+      name = "MYSTERY BOX";
+      category = "Free Fire";
+      description = "Free Fire মিস্ট্রি বক্স - Auto Delivery";
+      price = 200;
+      imageUrl = "/assets/generated/ff-mystery-box.dim_400x400.jpg";
+      isActive = true;
+      isFeatured = true;
+    };
+
+    let luckyBonus : ProductInput = {
+      name = "LUCKY BONUS EVENT";
+      category = "Special Offer";
+      description = "Lucky Bonus Top-Up - Win up to 1689 diamonds";
+      price = 300;
+      imageUrl = "/assets/generated/lucky-bonus-event.dim_400x400.jpg";
+      isActive = true;
+      isFeatured = true;
+    };
+
     ignore await addProduct(ffDiamonds);
     ignore await addProduct(pubgUc);
     ignore await addProduct(mlDiamonds);
+    ignore await addProduct(specialDiscount);
+    ignore await addProduct(ff100Like);
+    ignore await addProduct(mysteryBox);
+    ignore await addProduct(luckyBonus);
   };
 };
