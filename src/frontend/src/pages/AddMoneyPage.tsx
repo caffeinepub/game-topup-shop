@@ -17,7 +17,7 @@ const PAYMENT_METHODS = [
     color: "#E2136E",
     bg: "#fce4ef",
     border: "#f48fb1",
-    number: "01712-345678",
+    number: "01841956380",
   },
   {
     id: "nagad",
@@ -25,7 +25,7 @@ const PAYMENT_METHODS = [
     color: "#F26522",
     bg: "#fff3e0",
     border: "#ffb74d",
-    number: "01812-345678",
+    number: "01841956380",
   },
   {
     id: "rocket",
@@ -33,7 +33,7 @@ const PAYMENT_METHODS = [
     color: "#8A1C7C",
     bg: "#f3e5f5",
     border: "#ce93d8",
-    number: "01912-345678",
+    number: "01841956380",
   },
 ];
 
