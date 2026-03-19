@@ -31,6 +31,11 @@ export interface CreateOrderInput {
   'productId' : bigint,
   'quantity' : bigint,
 }
+export interface MemberInfo {
+  'principal' : Principal,
+  'adminLevel' : AdminLevel,
+  'profile' : [] | [UserProfile],
+}
 export type OrderStatus = { 'cancelled' : null } |
   { 'pending' : null } |
   { 'completed' : null } |
@@ -104,6 +109,7 @@ export interface _SERVICE {
   'creditWallet' : ActorMethod<[Principal, bigint], undefined>,
   'deleteBanner' : ActorMethod<[bigint], undefined>,
   'deleteProduct' : ActorMethod<[bigint], undefined>,
+  'getAllMembers' : ActorMethod<[], Array<MemberInfo>>,
   'getAllOrders' : ActorMethod<[], Array<OrderWithProduct>>,
   'getAnnouncement' : ActorMethod<[], string>,
   'getBanners' : ActorMethod<[], Array<Banner>>,
@@ -129,6 +135,7 @@ export interface _SERVICE {
   'setPaymentSettings' : ActorMethod<[PaymentSettings], undefined>,
   'setSiteSettings' : ActorMethod<[SiteSettings], undefined>,
   'setSubAdmin' : ActorMethod<[Principal, boolean], undefined>,
+  'setSuperAdminRole' : ActorMethod<[Principal, boolean], undefined>,
   'submitRechargeRequest' : ActorMethod<[RechargeRequestInput], bigint>,
   'updateBanner' : ActorMethod<[bigint, BannerInput], undefined>,
   'updateOrderStatus' : ActorMethod<[bigint, OrderStatus], undefined>,

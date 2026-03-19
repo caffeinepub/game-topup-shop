@@ -27,6 +27,11 @@ export interface OrderWithProduct {
     totalPrice: bigint;
     product: Product;
 }
+export interface MemberInfo {
+    principal: Principal;
+    adminLevel: AdminLevel;
+    profile?: UserProfile;
+}
 export interface Request {
     id: bigint;
     status: RequestStatus;
@@ -115,6 +120,7 @@ export interface backendInterface {
     creditWallet(user: Principal, amount: bigint): Promise<void>;
     deleteBanner(id: bigint): Promise<void>;
     deleteProduct(productId: bigint): Promise<void>;
+    getAllMembers(): Promise<Array<MemberInfo>>;
     getAllOrders(): Promise<Array<OrderWithProduct>>;
     getAnnouncement(): Promise<string>;
     getBanners(): Promise<Array<Banner>>;
@@ -140,6 +146,7 @@ export interface backendInterface {
     setPaymentSettings(settings: PaymentSettings): Promise<void>;
     setSiteSettings(settings: SiteSettings): Promise<void>;
     setSubAdmin(user: Principal, enable: boolean): Promise<void>;
+    setSuperAdminRole(user: Principal, enable: boolean): Promise<void>;
     submitRechargeRequest(input: RechargeRequestInput): Promise<bigint>;
     updateBanner(id: bigint, input: BannerInput): Promise<void>;
     updateOrderStatus(orderId: bigint, newStatus: OrderStatus): Promise<void>;

@@ -28,6 +28,17 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const AdminLevel = IDL.Variant({
+  'none' : IDL.Null,
+  'superAdmin' : IDL.Null,
+  'subAdmin' : IDL.Null,
+});
+export const UserProfile = IDL.Record({ 'name' : IDL.Text });
+export const MemberInfo = IDL.Record({
+  'principal' : IDL.Principal,
+  'adminLevel' : AdminLevel,
+  'profile' : IDL.Opt(UserProfile),
+});
 export const OrderStatus = IDL.Variant({
   'cancelled' : IDL.Null,
   'pending' : IDL.Null,
@@ -61,12 +72,6 @@ export const Banner = IDL.Record({
   'description' : IDL.Text,
   'isActive' : IDL.Bool,
   'imageUrl' : IDL.Text,
-});
-export const UserProfile = IDL.Record({ 'name' : IDL.Text });
-export const AdminLevel = IDL.Variant({
-  'none' : IDL.Null,
-  'superAdmin' : IDL.Null,
-  'subAdmin' : IDL.Null,
 });
 export const PaymentSettings = IDL.Record({
   'nagad' : IDL.Text,
@@ -116,6 +121,7 @@ export const idlService = IDL.Service({
   'creditWallet' : IDL.Func([IDL.Principal, IDL.Int], [], []),
   'deleteBanner' : IDL.Func([IDL.Nat], [], []),
   'deleteProduct' : IDL.Func([IDL.Nat], [], []),
+  'getAllMembers' : IDL.Func([], [IDL.Vec(MemberInfo)], ['query']),
   'getAllOrders' : IDL.Func([], [IDL.Vec(OrderWithProduct)], ['query']),
   'getAnnouncement' : IDL.Func([], [IDL.Text], ['query']),
   'getBanners' : IDL.Func([], [IDL.Vec(Banner)], ['query']),
@@ -145,6 +151,7 @@ export const idlService = IDL.Service({
   'setPaymentSettings' : IDL.Func([PaymentSettings], [], []),
   'setSiteSettings' : IDL.Func([SiteSettings], [], []),
   'setSubAdmin' : IDL.Func([IDL.Principal, IDL.Bool], [], []),
+  'setSuperAdminRole' : IDL.Func([IDL.Principal, IDL.Bool], [], []),
   'submitRechargeRequest' : IDL.Func([RechargeRequestInput], [IDL.Nat], []),
   'updateBanner' : IDL.Func([IDL.Nat, BannerInput], [], []),
   'updateOrderStatus' : IDL.Func([IDL.Nat, OrderStatus], [], []),
@@ -173,6 +180,17 @@ export const idlFactory = ({ IDL }) => {
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
+  });
+  const AdminLevel = IDL.Variant({
+    'none' : IDL.Null,
+    'superAdmin' : IDL.Null,
+    'subAdmin' : IDL.Null,
+  });
+  const UserProfile = IDL.Record({ 'name' : IDL.Text });
+  const MemberInfo = IDL.Record({
+    'principal' : IDL.Principal,
+    'adminLevel' : AdminLevel,
+    'profile' : IDL.Opt(UserProfile),
   });
   const OrderStatus = IDL.Variant({
     'cancelled' : IDL.Null,
@@ -207,12 +225,6 @@ export const idlFactory = ({ IDL }) => {
     'description' : IDL.Text,
     'isActive' : IDL.Bool,
     'imageUrl' : IDL.Text,
-  });
-  const UserProfile = IDL.Record({ 'name' : IDL.Text });
-  const AdminLevel = IDL.Variant({
-    'none' : IDL.Null,
-    'superAdmin' : IDL.Null,
-    'subAdmin' : IDL.Null,
   });
   const PaymentSettings = IDL.Record({
     'nagad' : IDL.Text,
@@ -262,6 +274,7 @@ export const idlFactory = ({ IDL }) => {
     'creditWallet' : IDL.Func([IDL.Principal, IDL.Int], [], []),
     'deleteBanner' : IDL.Func([IDL.Nat], [], []),
     'deleteProduct' : IDL.Func([IDL.Nat], [], []),
+    'getAllMembers' : IDL.Func([], [IDL.Vec(MemberInfo)], ['query']),
     'getAllOrders' : IDL.Func([], [IDL.Vec(OrderWithProduct)], ['query']),
     'getAnnouncement' : IDL.Func([], [IDL.Text], ['query']),
     'getBanners' : IDL.Func([], [IDL.Vec(Banner)], ['query']),
@@ -295,6 +308,7 @@ export const idlFactory = ({ IDL }) => {
     'setPaymentSettings' : IDL.Func([PaymentSettings], [], []),
     'setSiteSettings' : IDL.Func([SiteSettings], [], []),
     'setSubAdmin' : IDL.Func([IDL.Principal, IDL.Bool], [], []),
+    'setSuperAdminRole' : IDL.Func([IDL.Principal, IDL.Bool], [], []),
     'submitRechargeRequest' : IDL.Func([RechargeRequestInput], [IDL.Nat], []),
     'updateBanner' : IDL.Func([IDL.Nat, BannerInput], [], []),
     'updateOrderStatus' : IDL.Func([IDL.Nat, OrderStatus], [], []),

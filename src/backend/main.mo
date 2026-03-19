@@ -1,11 +1,11 @@
-import List "mo:core/List";
-import Array "mo:core/Array";
-import Iter "mo:core/Iter";
 import Map "mo:core/Map";
-import Time "mo:core/Time";
-import Int "mo:core/Int";
+import List "mo:core/List";
+import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
+import Int "mo:core/Int";
 import Text "mo:core/Text";
+import Array "mo:core/Array";
+import Time "mo:core/Time";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 import MixinAuthorization "authorization/MixinAuthorization";
@@ -14,7 +14,7 @@ import AccessControl "authorization/access-control";
 
 
 actor {
-  // ----- Types -----
+  // ----- TYPES -----
   module Product {
     public type Product = {
       id : Nat;
@@ -58,13 +58,9 @@ actor {
     };
   };
 
-  public type UserProfile = {
-    name : Text;
-  };
-
+  public type UserProfile = { name : Text };
   public type AdminLevel = { #superAdmin; #subAdmin; #none };
 
-  // --- New Types For Settings ---
   public type SiteSettings = {
     siteName : Text;
     logoUrl : Text;
@@ -97,81 +93,153 @@ actor {
     adminLevel : AdminLevel;
   };
 
-  // ------ Storage ------
+  public type ProductInput = {
+    name : Text;
+    category : Text;
+    description : Text;
+    price : Int;
+    imageUrl : Text;
+    isActive : Bool;
+    isFeatured : Bool;
+  };
+
+  public type CreateOrderInput = {
+    productId : Nat;
+    gameId : Text;
+    quantity : Nat;
+  };
+
+  public type OrderWithProduct = {
+    id : Nat;
+    userId : Principal;
+    productId : Nat;
+    gameId : Text;
+    quantity : Nat;
+    totalPrice : Int;
+    status : Order.OrderStatus;
+    createdAt : Int;
+    product : Product.Product;
+  };
+
+  public type RechargeRequestInput = {
+    amount : Int;
+    paymentMethod : RechargeRequest.PaymentMethod;
+    transactionId : Text;
+  };
+
+  // ----- STORAGE -----
   let products = Map.empty<Nat, Product.Product>();
   let orders = Map.empty<Nat, Order.Order>();
   let wallets = Map.empty<Principal, Int>();
   let rechargeRequests = Map.empty<Nat, RechargeRequest.Request>();
   let userProfiles = Map.empty<Principal, UserProfile>();
+
   let subAdmins = Map.empty<Principal, Bool>();
+  let promotedSuperAdmins = Map.empty<Principal, Bool>();
+  let knownUsers = Map.empty<Principal, Bool>();
+
+  let banners = Map.empty<Nat, Banner>();
+
   var siteSettings : SiteSettings = {
     siteName = "Game Topup Shop";
     logoUrl = "";
   };
+
   var paymentSettings : PaymentSettings = {
     bkash = "01841956380";
     nagad = "01841956380";
     rocket = "01841956380";
   };
+
+  var announcement : Text = "";
+
   var nextProductId = 1;
   var nextOrderId = 1;
   var nextRechargeRequestId = 1;
-  var announcement : Text = "";
-
-  // --- New Banners Store ---
-  let banners = Map.empty<Nat, Banner>();
   var nextBannerId = 1;
 
   // Initialize the user system state
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
-  // ------ Helper: check if caller can do admin operations ------
+  // ----- AUTHORIZATION HELPERS -----
+  func isOriginalAdmin(caller : Principal) : Bool {
+    AccessControl.isAdmin(accessControlState, caller);
+  };
+
+  func isSuperAdmin(caller : Principal) : Bool {
+    isOriginalAdmin(caller) or (
+      switch (promotedSuperAdmins.get(caller)) {
+        case (?true) { true };
+        case (_) { false };
+      }
+    );
+  };
+
   func isAdminOrSubAdmin(caller : Principal) : Bool {
-    if (AccessControl.isAdmin(accessControlState, caller)) { return true };
-    switch (subAdmins.get(caller)) {
-      case (?true) { true };
-      case (_) { false };
+    isSuperAdmin(caller) or (
+      switch (subAdmins.get(caller)) {
+        case (?true) { true };
+        case (_) { false };
+      }
+    );
+  };
+
+  func trackUser(caller : Principal) {
+    if (not knownUsers.containsKey(caller)) {
+      knownUsers.add(caller, true);
     };
   };
 
-  // ------ Sub-Admin Management ------
+  // ----- ADMIN LEVEL QUERIES -----
+  public query ({ caller }) func getMyAdminLevel() : async AdminLevel {
+    if (isSuperAdmin(caller)) { return #superAdmin };
+    if (subAdmins.containsKey(caller)) { return #subAdmin };
+    #none;
+  };
+
+  public query ({ caller }) func getUserAdminLevel(user : Principal) : async AdminLevel {
+    if (isSuperAdmin(user)) { return #superAdmin };
+    if (subAdmins.containsKey(user)) { return #subAdmin };
+    #none;
+  };
+
+  // ----- ROLE MANAGEMENT (Super Admin only) -----
   public shared ({ caller }) func setSubAdmin(user : Principal, enable : Bool) : async () {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Unauthorized: Only super admins can assign sub-admins");
+    if (not isSuperAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only super admins can manage sub-admins");
     };
     if (enable) {
       subAdmins.add(user, true);
+      promotedSuperAdmins.remove(user);
     } else {
       subAdmins.remove(user);
     };
   };
 
-  public query ({ caller }) func getUserAdminLevel(user : Principal) : async AdminLevel {
-    if (AccessControl.isAdmin(accessControlState, user)) { return #superAdmin };
-    switch (subAdmins.get(user)) {
-      case (?true) { #subAdmin };
-      case (_) { #none };
+  public shared ({ caller }) func setSuperAdminRole(user : Principal, enable : Bool) : async () {
+    if (not isSuperAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only super admins can assign super admin role");
+    };
+    if (enable) {
+      promotedSuperAdmins.add(user, true);
+      subAdmins.remove(user);
+    } else {
+      promotedSuperAdmins.remove(user);
     };
   };
 
-  public query ({ caller }) func getMyAdminLevel() : async AdminLevel {
-    if (AccessControl.isAdmin(accessControlState, caller)) { return #superAdmin };
-    switch (subAdmins.get(caller)) {
-      case (?true) { #subAdmin };
-      case (_) { #none };
-    };
-  };
-
-  // ------ Get All Members (Super Admin Only) ------
+  // ----- GET ALL MEMBERS (Super Admin only) -----
   public query ({ caller }) func getAllMembers() : async [MemberInfo] {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+    if (not isSuperAdmin(caller)) {
       Runtime.trap("Unauthorized: Only super admins can view all members");
     };
-    let result = List.empty<MemberInfo>();
-    for ((principal, _) in accessControlState.userRoles.entries()) {
+
+    let results = List.empty<MemberInfo>();
+
+    for ((principal, _) in knownUsers.entries()) {
       let profile = userProfiles.get(principal);
-      let adminLevel : AdminLevel = if (AccessControl.isAdmin(accessControlState, principal)) {
+      let adminLevel = if (isSuperAdmin(principal)) {
         #superAdmin;
       } else {
         switch (subAdmins.get(principal)) {
@@ -179,12 +247,30 @@ actor {
           case (_) { #none };
         };
       };
-      result.add({ principal; profile; adminLevel });
+      results.add({ principal; profile; adminLevel });
     };
-    result.toArray();
+
+    for ((principal, _) in promotedSuperAdmins.entries()) {
+      if (not knownUsers.containsKey(principal)) {
+        let profile = userProfiles.get(principal);
+        results.add({ principal; profile; adminLevel = #superAdmin });
+      };
+    };
+
+    for ((principal, _) in subAdmins.entries()) {
+      if (
+        not knownUsers.containsKey(principal) and
+        not promotedSuperAdmins.containsKey(principal)
+      ) {
+        let profile = userProfiles.get(principal);
+        results.add({ principal; profile; adminLevel = #subAdmin });
+      };
+    };
+
+    results.toArray();
   };
 
-  // ------ User Profile Management ------
+  // ----- USER PROFILE -----
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view profiles");
@@ -203,20 +289,11 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can save profiles");
     };
+    trackUser(caller);
     userProfiles.add(caller, profile);
   };
 
-  // ------ Product Management (Admin or SubAdmin) -------
-  public type ProductInput = {
-    name : Text;
-    category : Text;
-    description : Text;
-    price : Int;
-    imageUrl : Text;
-    isActive : Bool;
-    isFeatured : Bool;
-  };
-
+  // ----- PRODUCTS -----
   public shared ({ caller }) func addProduct(input : ProductInput) : async Nat {
     if (not isAdminOrSubAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can add products");
@@ -232,6 +309,7 @@ actor {
       isActive = input.isActive;
       isFeatured = input.isFeatured;
     };
+
     products.add(nextProductId, newProduct);
     nextProductId += 1;
     newProduct.id;
@@ -269,15 +347,14 @@ actor {
     };
 
     if (not products.containsKey(productId)) {
-      Runtime.trap("Product not found. ");
+      Runtime.trap("Product not found");
     };
     products.remove(productId);
   };
 
-  // ------ Product Listing (Public) -------
   public query ({ caller }) func getProducts() : async [Product.Product] {
-    let productIter = products.values();
-    productIter.toArray();
+    let iter = products.values();
+    iter.toArray();
   };
 
   public query ({ caller }) func getFeaturedProducts() : async [Product.Product] {
@@ -294,17 +371,13 @@ actor {
     iter.toArray();
   };
 
-  // ------ Order Management (Users) -------
-  public type CreateOrderInput = {
-    productId : Nat;
-    gameId : Text;
-    quantity : Nat;
-  };
-
+  // ----- ORDERS -----
   public shared ({ caller }) func placeOrder(input : CreateOrderInput) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can place orders");
     };
+
+    trackUser(caller);
 
     switch (products.get(input.productId)) {
       case (null) { Runtime.trap("Product not found") };
@@ -316,7 +389,7 @@ actor {
         };
 
         if (currentBalance < totalPrice) {
-          Runtime.trap("Insufficient wallet balance. ");
+          Runtime.trap("Insufficient wallet balance");
         };
 
         let newOrder : Order.Order = {
@@ -338,18 +411,6 @@ actor {
     };
   };
 
-  public type OrderWithProduct = {
-    id : Nat;
-    userId : Principal;
-    productId : Nat;
-    gameId : Text;
-    quantity : Nat;
-    totalPrice : Int;
-    status : Order.OrderStatus;
-    createdAt : Int;
-    product : Product.Product;
-  };
-
   public query ({ caller }) func getMyOrders() : async [OrderWithProduct] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view orders");
@@ -365,28 +426,40 @@ actor {
 
     let mappedIter = userOrders.values().map(
       func(order) {
-        let product = switch (products.get(order.productId)) {
-          case (null) { Runtime.trap("Product not found. ") };
-          case (?p) { p };
-        };
-        {
-          id = order.id;
-          userId = order.userId;
-          productId = order.productId;
-          gameId = order.gameId;
-          quantity = order.quantity;
-          totalPrice = order.totalPrice;
-          status = order.status;
-          createdAt = order.createdAt;
-          product;
+        switch (products.get(order.productId)) {
+          case (null) { null };
+          case (?product) {
+            ?{
+              id = order.id;
+              userId = order.userId;
+              productId = order.productId;
+              gameId = order.gameId;
+              quantity = order.quantity;
+              totalPrice = order.totalPrice;
+              status = order.status;
+              createdAt = order.createdAt;
+              product;
+            };
+          };
         };
       }
     );
 
-    mappedIter.toArray();
+    let filteredIter = mappedIter.filter(
+      func(optOrder) { switch (optOrder) { case (?_) { true }; case (null) { false } } }
+    );
+
+    let finalIter = filteredIter.map(
+      func(optOrder) {
+        switch (optOrder) {
+          case (null) { Runtime.trap("Unexpected: null OrderWithProduct") };
+          case (?order) { order };
+        };
+      }
+    );
+    finalIter.toArray();
   };
 
-  // ------ Order Management (Admin or SubAdmin) -------
   public query ({ caller }) func getAllOrders() : async [OrderWithProduct] {
     if (not isAdminOrSubAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can view all orders");
@@ -400,25 +473,38 @@ actor {
 
     let mappedIter = allOrders.values().map(
       func(order) {
-        let product = switch (products.get(order.productId)) {
-          case (null) { Runtime.trap("Product not found. ") };
-          case (?p) { p };
-        };
-        {
-          id = order.id;
-          userId = order.userId;
-          productId = order.productId;
-          gameId = order.gameId;
-          quantity = order.quantity;
-          totalPrice = order.totalPrice;
-          status = order.status;
-          createdAt = order.createdAt;
-          product;
+        switch (products.get(order.productId)) {
+          case (null) { null };
+          case (?product) {
+            ?{
+              id = order.id;
+              userId = order.userId;
+              productId = order.productId;
+              gameId = order.gameId;
+              quantity = order.quantity;
+              totalPrice = order.totalPrice;
+              status = order.status;
+              createdAt = order.createdAt;
+              product;
+            };
+          };
         };
       }
     );
 
-    mappedIter.toArray();
+    let filteredIter = mappedIter.filter(
+      func(optOrder) { switch (optOrder) { case (?_) { true }; case (null) { false } } }
+    );
+
+    let finalIter = filteredIter.map(
+      func(optOrder) {
+        switch (optOrder) {
+          case (null) { Runtime.trap("Unexpected: null OrderWithProduct") };
+          case (?order) { order };
+        };
+      }
+    );
+    finalIter.toArray();
   };
 
   public shared ({ caller }) func updateOrderStatus(
@@ -447,12 +533,11 @@ actor {
     };
   };
 
-  // ------ Wallet Management -------
+  // ----- WALLET -----
   public query ({ caller }) func getWalletBalance() : async Int {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view wallet balance");
     };
-
     switch (wallets.get(caller)) {
       case (null) { 0 };
       case (?balance) { balance };
@@ -475,27 +560,21 @@ actor {
     wallets.add(user, currentBalance + amount);
   };
 
-  // ------ Recharge Requests -------
-  public type RechargeRequestInput = {
-    amount : Int;
-    paymentMethod : RechargeRequest.PaymentMethod;
-    transactionId : Text;
-  };
-
+  // ----- RECHARGE -----
   public query ({ caller }) func getRechargeRequests() : async [RechargeRequest.Request] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view recharge requests");
     };
-
-    let allRequests = List.empty<RechargeRequest.Request>();
+    let requests = List.empty<RechargeRequest.Request>();
 
     for ((_, request) in rechargeRequests.entries()) {
-      if (request.user == caller or isAdminOrSubAdmin(caller)) {
-        allRequests.add(request);
+      if (isAdminOrSubAdmin(caller) or request.user == caller) {
+        requests.add(request);
       };
     };
 
-    allRequests.reverse().toArray();
+    let array = requests.toArray();
+    array.reverse();
   };
 
   public shared ({ caller }) func submitRechargeRequest(
@@ -504,6 +583,7 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can submit recharge requests");
     };
+    trackUser(caller);
 
     let newRequest : RechargeRequest.Request = {
       id = nextRechargeRequestId;
@@ -570,12 +650,11 @@ actor {
     };
   };
 
-  // ------ Announcement (Super Admin Only) -------
+  // ----- ANNOUNCEMENT (Super Admin only) -----
   public shared ({ caller }) func setAnnouncement(text : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can set announcements");
+    if (not isSuperAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only super admins can set announcements");
     };
-
     announcement := text;
   };
 
@@ -583,7 +662,7 @@ actor {
     announcement;
   };
 
-  // ------ Initialize Sample Data -------
+  // ----- SETUP SAMPLE DATA -----
   public shared ({ caller }) func initializeSampleData() : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can initialize data");
@@ -668,39 +747,38 @@ actor {
     ignore await addProduct(luckyBonus);
   };
 
-  // --- Site Settings ---
+  // --- SITE SETTINGS (Super Admin only) ---
   public query ({ caller }) func getSiteSettings() : async SiteSettings {
     siteSettings;
   };
 
   public shared ({ caller }) func setSiteSettings(settings : SiteSettings) : async () {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Only admin can set site settings");
+    if (not isSuperAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only super admins can set site settings");
     };
     siteSettings := settings;
   };
 
-  // --- Payment Settings ---
   public query ({ caller }) func getPaymentSettings() : async PaymentSettings {
     paymentSettings;
   };
 
   public shared ({ caller }) func setPaymentSettings(settings : PaymentSettings) : async () {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Only admin can set payment settings");
+    if (not isSuperAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only super admins can set payment settings");
     };
     paymentSettings := settings;
   };
 
-  // --- Banner Management ---
+  // --- BANNERS ---
   public query ({ caller }) func getBanners() : async [Banner] {
-    let iter = banners.values();
-    iter.toArray();
+    let values = banners.values();
+    values.toArray();
   };
 
   public shared ({ caller }) func addBanner(input : BannerInput) : async Nat {
     if (not isAdminOrSubAdmin(caller)) {
-      Runtime.trap("Only admin or sub-admin can add banner");
+      Runtime.trap("Unauthorized: Only admins can add banners");
     };
     let newBanner : Banner = {
       id = nextBannerId;
@@ -719,7 +797,7 @@ actor {
     input : BannerInput,
   ) : async () {
     if (not isAdminOrSubAdmin(caller)) {
-      Runtime.trap("Only admin or sub-admin can update banner");
+      Runtime.trap("Unauthorized: Only admins can update banners");
     };
     switch (banners.get(id)) {
       case (null) { Runtime.trap("Banner not found") };
@@ -738,7 +816,7 @@ actor {
 
   public shared ({ caller }) func deleteBanner(id : Nat) : async () {
     if (not isAdminOrSubAdmin(caller)) {
-      Runtime.trap("Only admin or sub-admin can delete banner");
+      Runtime.trap("Unauthorized: Only admins can delete banners");
     };
     if (not banners.containsKey(id)) {
       Runtime.trap("Banner not found");

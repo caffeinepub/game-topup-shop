@@ -131,6 +131,7 @@ export function usePlaceOrder() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["myOrders"] });
       qc.invalidateQueries({ queryKey: ["walletBalance"] });
+      qc.invalidateQueries({ queryKey: ["allOrders"] });
     },
   });
 }
@@ -360,6 +361,19 @@ export function useSetSubAdmin() {
     }: { user: Principal; enable: boolean }) => {
       if (!actor) throw new Error("Not connected");
       return actor.setSubAdmin(user, enable);
+    },
+  });
+}
+
+export function useSetSuperAdminRole() {
+  const { actor } = useActor();
+  return useMutation({
+    mutationFn: async ({
+      user,
+      enable,
+    }: { user: Principal; enable: boolean }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.setSuperAdminRole(user, enable);
     },
   });
 }

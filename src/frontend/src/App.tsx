@@ -1,9 +1,9 @@
 import { Toaster } from "@/components/ui/sonner";
 import { useState } from "react";
+import AdminPanel from "./admin/AdminPanel";
 import type { Product } from "./backend.d";
 import BottomNav from "./components/BottomNav";
 import AddMoneyPage from "./pages/AddMoneyPage";
-import AdminPage from "./pages/AdminPage";
 import HomePage from "./pages/HomePage";
 import MyOrdersPage from "./pages/MyOrdersPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
@@ -42,7 +42,7 @@ export default function App() {
       case "profile":
         return <ProfilePage onNavigate={setCurrentPage} />;
       case "admin":
-        return <AdminPage />;
+        return <AdminPanel />;
       case "product-detail":
         return selectedProduct ? (
           <ProductDetailPage

@@ -19,6 +19,40 @@ interface HomePageProps {
   onProductSelect: (product: Product) => void;
 }
 
+interface Offer {
+  id: string;
+  title: string;
+  description: string;
+  discount: string;
+  isActive: boolean;
+}
+
+function useLocalOffers(): Offer[] {
+  const [offers, setOffers] = useState<Offer[]>(() => {
+    try {
+      const raw = localStorage.getItem("admin_offers");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const raw = localStorage.getItem("admin_offers");
+        setOffers(raw ? JSON.parse(raw) : []);
+      } catch {
+        setOffers([]);
+      }
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+
+  return offers;
+}
+
 export default function HomePage({
   onNavigate: _onNavigate,
   onProductSelect,
@@ -31,6 +65,9 @@ export default function HomePage({
   const [showBanner, setShowBanner] = useState(true);
   const [activeBannerIndex, setActiveBannerIndex] = useState(0);
   const [initialized, setInitialized] = useState(false);
+
+  const allOffers = useLocalOffers();
+  const activeOffers = allOffers.filter((o) => o.isActive);
 
   useEffect(() => {
     if (products && products.length === 0 && !initialized) {
@@ -168,6 +205,38 @@ export default function HomePage({
                 এখনই অর্ডার করুন <ChevronRight size={14} />
               </button>
             </motion.div>
+          </div>
+        </div>
+      )}
+
+      {/* Offers Section */}
+      {activeOffers.length > 0 && (
+        <div className="px-4 pt-4">
+          <h2 className="text-base font-black text-gray-800 tracking-wide mb-3">
+            🏷️ অফার সমূহ
+          </h2>
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
+            {activeOffers.map((offer) => (
+              <motion.div
+                key={offer.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex-shrink-0 w-48 rounded-xl bg-gradient-to-br from-gray-900 to-gray-800 border border-orange-500/30 p-3 relative overflow-hidden"
+              >
+                {/* Glow accent */}
+                <div className="absolute top-0 right-0 w-16 h-16 bg-orange-500/10 rounded-full -translate-y-4 translate-x-4" />
+                {/* Discount badge */}
+                <span className="inline-block bg-orange-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full mb-2">
+                  {offer.discount}
+                </span>
+                <p className="text-white text-sm font-bold leading-tight mb-1">
+                  {offer.title}
+                </p>
+                <p className="text-gray-400 text-[11px] leading-snug line-clamp-2">
+                  {offer.description}
+                </p>
+              </motion.div>
+            ))}
           </div>
         </div>
       )}

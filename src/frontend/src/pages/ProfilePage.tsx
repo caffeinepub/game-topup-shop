@@ -36,12 +36,21 @@ export default function ProfilePage({ onNavigate }: ProfilePageProps) {
     : principal.slice(0, 2).toUpperCase() || "GU";
 
   const handleSave = async () => {
+    if (!identity) {
+      toast.error("লগইন করুন, তারপর নাম সেভ করুন");
+      return;
+    }
+    const trimmed = name.trim();
+    if (!trimmed) {
+      toast.error("নাম খালি রাখা যাবে না");
+      return;
+    }
     try {
-      await saveProfile({ name: name.trim() || "User" });
+      await saveProfile({ name: trimmed });
       toast.success("প্রোফাইল সেভ হয়েছে ✅");
       setEditing(false);
     } catch {
-      toast.error("সেভ করতে সমস্যা হয়েছে");
+      toast.error("সেভ করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
     }
   };
 
@@ -127,6 +136,9 @@ export default function ProfilePage({ onNavigate }: ProfilePageProps) {
               placeholder="নাম লিখুন"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSave();
+              }}
             />
             <div className="flex gap-2">
               <Button
@@ -140,7 +152,7 @@ export default function ProfilePage({ onNavigate }: ProfilePageProps) {
               <Button
                 data-ocid="profile.save_button"
                 onClick={handleSave}
-                disabled={isPending}
+                disabled={isPending || !identity}
                 className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold"
               >
                 {isPending && (
