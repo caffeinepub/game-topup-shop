@@ -4,9 +4,7 @@ import { useEffect, useState } from "react";
 import type { PageType } from "../App";
 import type { Product } from "../backend.d";
 import AppHeader from "../components/AppHeader";
-import OrderModal from "../components/OrderModal";
 import ProductCard from "../components/ProductCard";
-import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAnnouncement,
   useInitializeSampleData,
@@ -17,17 +15,18 @@ const SKELETON_KEYS = ["sk-1", "sk-2", "sk-3", "sk-4", "sk-5", "sk-6"];
 
 interface HomePageProps {
   onNavigate: (page: PageType) => void;
+  onProductSelect: (product: Product) => void;
 }
 
-export default function HomePage({ onNavigate: _onNavigate }: HomePageProps) {
+export default function HomePage({
+  onNavigate: _onNavigate,
+  onProductSelect,
+}: HomePageProps) {
   const { data: products, isLoading } = useProducts();
   const { data: announcement } = useAnnouncement();
   const { mutateAsync: initData } = useInitializeSampleData();
-  const { login } = useInternetIdentity();
 
   const [showBanner, setShowBanner] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -36,15 +35,6 @@ export default function HomePage({ onNavigate: _onNavigate }: HomePageProps) {
       initData().catch(() => {});
     }
   }, [products, initialized, initData]);
-
-  const handleProductClick = (product: Product) => {
-    setSelectedProduct(product);
-    setOrderModalOpen(true);
-  };
-
-  const handleLoginRequired = () => {
-    login();
-  };
 
   const activeProducts = products?.filter((p) => p.isActive) ?? [];
 
@@ -165,7 +155,7 @@ export default function HomePage({ onNavigate: _onNavigate }: HomePageProps) {
                 <ProductCard
                   product={product}
                   index={i}
-                  onClick={handleProductClick}
+                  onClick={onProductSelect}
                 />
               </motion.div>
             ))}
@@ -187,13 +177,6 @@ export default function HomePage({ onNavigate: _onNavigate }: HomePageProps) {
           </a>
         </p>
       </footer>
-
-      <OrderModal
-        product={selectedProduct}
-        open={orderModalOpen}
-        onClose={() => setOrderModalOpen(false)}
-        onLoginRequired={handleLoginRequired}
-      />
     </div>
   );
 }
