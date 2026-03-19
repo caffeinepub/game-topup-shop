@@ -1,33 +1,31 @@
 # Game Topup Shop
 
 ## Current State
-Admin panel has a Members tab where the Super Admin can search users by Principal ID and change their role (Admin/User/Guest). There is no sub-admin role -- only full admins (who have all access) and regular users.
+Admin Panel uses a horizontal Shadcn `<Tabs>` component with a CSS grid layout. All tabs (Products, Orders, Recharge, Members, Settings) are displayed as a row of tab triggers at the top. On mobile, small text (`text-[11px]`) is used to fit them.
 
 ## Requested Changes (Diff)
 
 ### Add
-- New `subAdmin` concept tracked in backend via a `subAdmins` map
-- Backend function `setSubAdmin(user, bool)` -- only Super Admin can call
-- Backend function `getUserAdminType(user)` -- returns `#superAdmin`, `#subAdmin`, or `#none`
-- Backend functions for products, orders, recharge now also allow subAdmins
-- In AdminPage Members tab: Super Admin can assign 'Sub-Admin' role to any user
-- Sub-Admin sees only Products, Orders, Recharge tabs in admin panel
-- Super Admin sees all tabs: Products, Offers/Announcements, Orders, Recharge, Members
+- Left sidebar navigation in the Admin Panel with grouped sections
+- Active tab state variable to control which section is shown
+- Group headers/labels in the sidebar
 
 ### Modify
-- Backend: `addProduct`, `updateProduct`, `deleteProduct`, `getAllOrders`, `updateOrderStatus`, `approveRechargeRequest`, `rejectRechargeRequest`, `getRechargeRequests` (admin view) -- now also allow subAdmins
-- AdminPage: conditionally render tabs based on whether user is superAdmin or subAdmin
-- App.tsx/AdminPage access check: allow subAdmins to access `/admin` route
-- Members tab role assignment: add 'Sub-Admin' option
+- Replace horizontal `<TabsList>/<TabsTrigger>` nav with a vertical sidebar menu
+- Layout changes from single-column to two-column (sidebar + content)
+- Group sidebar items:
+  - **কন্টেন্ট ম্যানেজমেন্ট**: Products, Offers (if exists)
+  - **অর্ডার ও রিচার্জ**: Orders, Recharge
+  - **ইউজার ম্যানেজমেন্ট**: Members (Super Admin only)
+  - **সেটিংস**: Settings (Super Admin only)
 
 ### Remove
-- Nothing removed
+- Horizontal tab bar at the top of the admin panel
 
 ## Implementation Plan
-1. Add `subAdmins` map in backend, add `setSubAdmin` and `getUserAdminType` public functions
-2. Update permission checks in product/order/recharge backend functions to allow subAdmins
-3. Update `backend.d.ts` with new functions and types
-4. In AdminPage, call `getUserAdminType` on mount to determine admin level
-5. Conditionally show tabs: subAdmin gets Products+Orders+Recharge; superAdmin gets all
-6. Add Sub-Admin option in Members tab role management
-7. Update App.tsx admin route guard to allow subAdmins
+1. Replace Shadcn `<Tabs>` with a manual `activeTab` state + conditional rendering
+2. Add a sidebar `<nav>` on the left with grouped menu items
+3. Each group has a label and items; clicking an item sets `activeTab`
+4. Content area renders the corresponding section based on `activeTab`
+5. Sidebar highlights the active item
+6. On mobile: sidebar collapses or becomes a top scrollable nav

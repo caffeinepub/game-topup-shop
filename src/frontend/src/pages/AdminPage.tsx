@@ -25,7 +25,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Principal } from "@icp-sdk/core/principal";
 import {
@@ -581,8 +580,7 @@ export default function AdminPage() {
     }
   };
 
-  // Tab count for grid
-  const tabCount = isSuperAdmin ? 5 : 3;
+  const [activeTab, setActiveTab] = useState<string>("products");
 
   return (
     <div data-ocid="admin.page" className="min-h-screen bg-gray-50">
@@ -604,390 +602,490 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <div className="px-4 py-4">
-        <Tabs defaultValue="products">
-          <TabsList
-            data-ocid="admin.tab"
-            className={`w-full mb-4 bg-white border grid grid-cols-${tabCount}`}
+      {/* Mobile top nav */}
+      <div className="md:hidden bg-gray-800 overflow-x-auto">
+        <div className="flex px-2 py-1 gap-1 min-w-max" data-ocid="admin.tab">
+          <button
+            type="button"
+            onClick={() => setActiveTab("products")}
+            className={`flex flex-col items-center px-3 py-2 rounded-lg text-[10px] font-semibold transition-colors ${activeTab === "products" ? "bg-orange-500 text-white" : "text-gray-300 hover:bg-gray-700"}`}
           >
-            <TabsTrigger value="products" className="text-[11px] px-1">
-              পণ্য
-            </TabsTrigger>
-            <TabsTrigger value="orders" className="text-[11px] px-1">
-              অর্ডার
-            </TabsTrigger>
-            <TabsTrigger value="recharge" className="text-[11px] px-1">
-              রিচার্জ
-            </TabsTrigger>
-            {isSuperAdmin && (
-              <TabsTrigger value="members" className="text-[11px] px-1">
-                মেম্বার
-              </TabsTrigger>
-            )}
-            {isSuperAdmin && (
-              <TabsTrigger value="settings" className="text-[11px] px-1">
-                সেটিংস
-              </TabsTrigger>
-            )}
-          </TabsList>
+            <span>📦</span>
+            <span>পণ্য</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("orders")}
+            className={`flex flex-col items-center px-3 py-2 rounded-lg text-[10px] font-semibold transition-colors ${activeTab === "orders" ? "bg-orange-500 text-white" : "text-gray-300 hover:bg-gray-700"}`}
+          >
+            <span>🛒</span>
+            <span>অর্ডার</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("recharge")}
+            className={`flex flex-col items-center px-3 py-2 rounded-lg text-[10px] font-semibold transition-colors ${activeTab === "recharge" ? "bg-orange-500 text-white" : "text-gray-300 hover:bg-gray-700"}`}
+          >
+            <span>💳</span>
+            <span>রিচার্জ</span>
+          </button>
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("members")}
+              className={`flex flex-col items-center px-3 py-2 rounded-lg text-[10px] font-semibold transition-colors ${activeTab === "members" ? "bg-orange-500 text-white" : "text-gray-300 hover:bg-gray-700"}`}
+            >
+              <span>👥</span>
+              <span>মেম্বার</span>
+            </button>
+          )}
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("settings")}
+              className={`flex flex-col items-center px-3 py-2 rounded-lg text-[10px] font-semibold transition-colors ${activeTab === "settings" ? "bg-orange-500 text-white" : "text-gray-300 hover:bg-gray-700"}`}
+            >
+              <span>⚙️</span>
+              <span>সেটিংস</span>
+            </button>
+          )}
+        </div>
+      </div>
 
-          {/* Products Tab */}
-          <TabsContent value="products" className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-semibold text-gray-700">
-                {products?.length ?? 0} পণ্য
-              </span>
-              <Dialog
-                open={productDialogOpen}
-                onOpenChange={setProductDialogOpen}
+      <div className="flex flex-1">
+        {/* Desktop sidebar */}
+        <aside className="hidden md:flex flex-col w-56 bg-gray-900 min-h-screen shrink-0">
+          <div className="px-3 py-4 space-y-5">
+            <div>
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">
+                কন্টেন্ট ম্যানেজমেন্ট
+              </p>
+              <button
+                data-ocid="admin.products.tab"
+                type="button"
+                onClick={() => setActiveTab("products")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === "products" ? "bg-orange-500 text-white" : "text-gray-300 hover:bg-gray-800"}`}
               >
-                <DialogTrigger asChild>
-                  <Button
-                    data-ocid="admin.product.open_modal_button"
-                    size="sm"
-                    className="bg-orange-500 hover:bg-orange-600 text-white"
-                    onClick={() => {
-                      setEditingProduct(null);
-                      setProductForm(emptyProduct);
-                    }}
-                  >
-                    <Plus size={14} className="mr-1" /> নতুন পণ্য
-                  </Button>
-                </DialogTrigger>
-                <DialogContent
-                  data-ocid="admin.product.dialog"
-                  className="max-w-[380px]"
-                >
-                  <DialogHeader>
-                    <DialogTitle>
-                      {editingProduct ? "পণ্য সম্পাদনা" : "নতুন পণ্য যোগ করুন"}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-3">
-                    <div>
-                      <Label className="text-xs">নাম</Label>
-                      <Input
-                        data-ocid="admin.product.input"
-                        value={productForm.name}
-                        onChange={(e) =>
-                          setProductForm((p) => ({
-                            ...p,
-                            name: e.target.value,
-                          }))
-                        }
-                        placeholder="পণ্যের নাম"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">বিবরণ</Label>
-                      <Textarea
-                        data-ocid="admin.product.textarea"
-                        value={productForm.description}
-                        onChange={(e) =>
-                          setProductForm((p) => ({
-                            ...p,
-                            description: e.target.value,
-                          }))
-                        }
-                        placeholder="বিবরণ"
-                        rows={2}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">দাম (টাকা)</Label>
-                      <Input
-                        value={productForm.price.toString()}
-                        onChange={(e) =>
-                          setProductForm((p) => ({
-                            ...p,
-                            price: BigInt(Number.parseInt(e.target.value) || 0),
-                          }))
-                        }
-                        type="number"
-                        placeholder="0"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">ছবির URL</Label>
-                      <Input
-                        value={productForm.imageUrl}
-                        onChange={(e) =>
-                          setProductForm((p) => ({
-                            ...p,
-                            imageUrl: e.target.value,
-                          }))
-                        }
-                        placeholder="/assets/..."
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">ক্যাটাগরি</Label>
-                      <Input
-                        value={productForm.category}
-                        onChange={(e) =>
-                          setProductForm((p) => ({
-                            ...p,
-                            category: e.target.value,
-                          }))
-                        }
-                        placeholder="free-fire"
-                      />
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          data-ocid="admin.product.switch"
-                          checked={productForm.isFeatured}
-                          onCheckedChange={(v) =>
-                            setProductForm((p) => ({ ...p, isFeatured: v }))
-                          }
-                        />
-                        <Label className="text-xs">ফিচার্ড</Label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={productForm.isActive}
-                          onCheckedChange={(v) =>
-                            setProductForm((p) => ({ ...p, isActive: v }))
-                          }
-                        />
-                        <Label className="text-xs">সক্রিয়</Label>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        data-ocid="admin.product.cancel_button"
-                        variant="outline"
-                        onClick={() => setProductDialogOpen(false)}
-                        className="flex-1"
-                      >
-                        বাতিল
-                      </Button>
-                      <Button
-                        data-ocid="admin.product.submit_button"
-                        onClick={handleProductSubmit}
-                        disabled={addingProduct}
-                        className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-                      >
-                        {addingProduct && (
-                          <Loader2 size={14} className="animate-spin mr-1" />
-                        )}
-                        {editingProduct ? "আপডেট" : "যোগ করুন"}
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                <span>📦</span> পণ্য
+              </button>
             </div>
-
-            {products?.map((p, i) => (
-              <div
-                key={p.id.toString()}
-                data-ocid={`admin.product.item.${i + 1}`}
-                className="bg-white rounded-xl border border-gray-100 p-3 flex items-center justify-between"
+            <div>
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">
+                অর্ডার ও রিচার্জ
+              </p>
+              <button
+                data-ocid="admin.orders.tab"
+                type="button"
+                onClick={() => setActiveTab("orders")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === "orders" ? "bg-orange-500 text-white" : "text-gray-300 hover:bg-gray-800"}`}
               >
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-gray-800 truncate">
-                    {p.name}
-                  </p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-orange-600 font-bold">
-                      ৳ {p.price.toString()}
-                    </span>
-                    {p.isFeatured && (
-                      <Badge className="text-[10px] bg-yellow-100 text-yellow-700 border-0 px-1.5">
-                        HOT
-                      </Badge>
-                    )}
-                    {!p.isActive && (
-                      <Badge className="text-[10px] bg-red-100 text-red-600 border-0 px-1.5">
-                        Inactive
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-1 ml-2">
-                  <button
-                    type="button"
-                    data-ocid={`admin.product.edit_button.${i + 1}`}
-                    onClick={() => {
-                      setEditingProduct(p);
-                      setProductForm({
-                        name: p.name,
-                        description: p.description,
-                        price: p.price,
-                        imageUrl: p.imageUrl,
-                        category: p.category,
-                        isFeatured: p.isFeatured,
-                        isActive: p.isActive,
-                      });
-                      setProductDialogOpen(true);
-                    }}
-                    className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center hover:bg-blue-100"
-                  >
-                    <Edit3 size={14} className="text-blue-600" />
-                  </button>
-                  <button
-                    type="button"
-                    data-ocid={`admin.product.delete_button.${i + 1}`}
-                    onClick={() => handleDeleteProduct(p.id)}
-                    className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center hover:bg-red-100"
-                  >
-                    <Trash2 size={14} className="text-red-500" />
-                  </button>
-                </div>
+                <span>🛒</span> অর্ডার
+              </button>
+              <button
+                data-ocid="admin.recharge.tab"
+                type="button"
+                onClick={() => setActiveTab("recharge")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors mt-0.5 ${activeTab === "recharge" ? "bg-orange-500 text-white" : "text-gray-300 hover:bg-gray-800"}`}
+              >
+                <span>💳</span> রিচার্জ
+              </button>
+            </div>
+            {isSuperAdmin && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">
+                  ইউজার ম্যানেজমেন্ট
+                </p>
+                <button
+                  data-ocid="admin.members.tab"
+                  type="button"
+                  onClick={() => setActiveTab("members")}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === "members" ? "bg-orange-500 text-white" : "text-gray-300 hover:bg-gray-800"}`}
+                >
+                  <span>👥</span> মেম্বার
+                </button>
               </div>
-            ))}
-          </TabsContent>
+            )}
+            {isSuperAdmin && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">
+                  সাইট সেটিংস
+                </p>
+                <button
+                  data-ocid="admin.settings.tab"
+                  type="button"
+                  onClick={() => setActiveTab("settings")}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === "settings" ? "bg-orange-500 text-white" : "text-gray-300 hover:bg-gray-800"}`}
+                >
+                  <span>⚙️</span> সেটিংস
+                </button>
+              </div>
+            )}
+          </div>
+        </aside>
 
-          {/* Orders Tab */}
-          <TabsContent value="orders" className="space-y-3">
-            {orders?.map((order, i) => (
-              <div
-                key={order.id.toString()}
-                data-ocid={`admin.order.item.${i + 1}`}
-                className="bg-white rounded-xl border border-gray-100 p-3"
-              >
-                <div className="flex justify-between items-start mb-2">
+        <div className="flex-1 px-4 py-4 overflow-auto">
+          {activeTab === "products" && (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-semibold text-gray-700">
+                  {products?.length ?? 0} পণ্য
+                </span>
+                <Dialog
+                  open={productDialogOpen}
+                  onOpenChange={setProductDialogOpen}
+                >
+                  <DialogTrigger asChild>
+                    <Button
+                      data-ocid="admin.product.open_modal_button"
+                      size="sm"
+                      className="bg-orange-500 hover:bg-orange-600 text-white"
+                      onClick={() => {
+                        setEditingProduct(null);
+                        setProductForm(emptyProduct);
+                      }}
+                    >
+                      <Plus size={14} className="mr-1" /> নতুন পণ্য
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent
+                    data-ocid="admin.product.dialog"
+                    className="max-w-[380px]"
+                  >
+                    <DialogHeader>
+                      <DialogTitle>
+                        {editingProduct ? "পণ্য সম্পাদনা" : "নতুন পণ্য যোগ করুন"}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs">নাম</Label>
+                        <Input
+                          data-ocid="admin.product.input"
+                          value={productForm.name}
+                          onChange={(e) =>
+                            setProductForm((p) => ({
+                              ...p,
+                              name: e.target.value,
+                            }))
+                          }
+                          placeholder="পণ্যের নাম"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">বিবরণ</Label>
+                        <Textarea
+                          data-ocid="admin.product.textarea"
+                          value={productForm.description}
+                          onChange={(e) =>
+                            setProductForm((p) => ({
+                              ...p,
+                              description: e.target.value,
+                            }))
+                          }
+                          placeholder="বিবরণ"
+                          rows={2}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">দাম (টাকা)</Label>
+                        <Input
+                          value={productForm.price.toString()}
+                          onChange={(e) =>
+                            setProductForm((p) => ({
+                              ...p,
+                              price: BigInt(
+                                Number.parseInt(e.target.value) || 0,
+                              ),
+                            }))
+                          }
+                          type="number"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">ছবির URL</Label>
+                        <Input
+                          value={productForm.imageUrl}
+                          onChange={(e) =>
+                            setProductForm((p) => ({
+                              ...p,
+                              imageUrl: e.target.value,
+                            }))
+                          }
+                          placeholder="/assets/..."
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">ক্যাটাগরি</Label>
+                        <Input
+                          value={productForm.category}
+                          onChange={(e) =>
+                            setProductForm((p) => ({
+                              ...p,
+                              category: e.target.value,
+                            }))
+                          }
+                          placeholder="free-fire"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            data-ocid="admin.product.switch"
+                            checked={productForm.isFeatured}
+                            onCheckedChange={(v) =>
+                              setProductForm((p) => ({ ...p, isFeatured: v }))
+                            }
+                          />
+                          <Label className="text-xs">ফিচার্ড</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={productForm.isActive}
+                            onCheckedChange={(v) =>
+                              setProductForm((p) => ({ ...p, isActive: v }))
+                            }
+                          />
+                          <Label className="text-xs">সক্রিয়</Label>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          data-ocid="admin.product.cancel_button"
+                          variant="outline"
+                          onClick={() => setProductDialogOpen(false)}
+                          className="flex-1"
+                        >
+                          বাতিল
+                        </Button>
+                        <Button
+                          data-ocid="admin.product.submit_button"
+                          onClick={handleProductSubmit}
+                          disabled={addingProduct}
+                          className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                        >
+                          {addingProduct && (
+                            <Loader2 size={14} className="animate-spin mr-1" />
+                          )}
+                          {editingProduct ? "আপডেট" : "যোগ করুন"}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {products?.map((p, i) => (
+                <div
+                  key={p.id.toString()}
+                  data-ocid={`admin.product.item.${i + 1}`}
+                  className="bg-white rounded-xl border border-gray-100 p-3 flex items-center justify-between"
+                >
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-gray-800 truncate">
-                      {order.product.name}
+                      {p.name}
                     </p>
-                    <p className="text-xs text-gray-500">
-                      {order.gameId} • {formatDate(order.createdAt)}
-                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-orange-600 font-bold">
+                        ৳ {p.price.toString()}
+                      </span>
+                      {p.isFeatured && (
+                        <Badge className="text-[10px] bg-yellow-100 text-yellow-700 border-0 px-1.5">
+                          HOT
+                        </Badge>
+                      )}
+                      {!p.isActive && (
+                        <Badge className="text-[10px] bg-red-100 text-red-600 border-0 px-1.5">
+                          Inactive
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <span className="font-bold text-orange-600 text-sm ml-2">
-                    ৳ {order.totalPrice.toString()}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <span className="text-[11px] text-gray-400">মেম্বার:</span>
-                  <MemberCodeBadge principalId={order.userId.toString()} />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      statusColors[order.status]
-                    }`}
-                  >
-                    {order.status}
-                  </span>
-                  <Select
-                    value={order.status}
-                    onValueChange={(v) =>
-                      handleStatusChange(order.id, v as OrderStatus)
-                    }
-                  >
-                    <SelectTrigger
-                      data-ocid={`admin.order.select.${i + 1}`}
-                      className="h-7 text-xs flex-1"
+                  <div className="flex gap-1 ml-2">
+                    <button
+                      type="button"
+                      data-ocid={`admin.product.edit_button.${i + 1}`}
+                      onClick={() => {
+                        setEditingProduct(p);
+                        setProductForm({
+                          name: p.name,
+                          description: p.description,
+                          price: p.price,
+                          imageUrl: p.imageUrl,
+                          category: p.category,
+                          isFeatured: p.isFeatured,
+                          isActive: p.isActive,
+                        });
+                        setProductDialogOpen(true);
+                      }}
+                      className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center hover:bg-blue-100"
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statusOptions.map((s) => (
-                        <SelectItem
-                          key={s.value}
-                          value={s.value}
-                          className="text-xs"
-                        >
-                          {s.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                      <Edit3 size={14} className="text-blue-600" />
+                    </button>
+                    <button
+                      type="button"
+                      data-ocid={`admin.product.delete_button.${i + 1}`}
+                      onClick={() => handleDeleteProduct(p.id)}
+                      className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center hover:bg-red-100"
+                    >
+                      <Trash2 size={14} className="text-red-500" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-            {(!orders || orders.length === 0) && (
-              <div
-                data-ocid="admin.orders.empty_state"
-                className="text-center py-12 text-gray-400"
-              >
-                <p className="text-sm">কোনো অর্ডার নেই</p>
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Recharge Tab */}
-          <TabsContent value="recharge" className="space-y-3">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-semibold text-gray-700">
-                {rechargeRequests?.length ?? 0} রিচার্জ রিকোয়েস্ট
-              </span>
+              ))}
             </div>
-            {(!rechargeRequests || rechargeRequests.length === 0) && (
-              <div
-                data-ocid="admin.recharge.empty_state"
-                className="text-center py-12 text-gray-400"
-              >
-                <p className="text-sm">কোনো রিচার্জ রিকোয়েস্ট নেই</p>
-              </div>
-            )}
-            {rechargeRequests?.map((req, i) => (
-              <div
-                key={req.id.toString()}
-                data-ocid={`admin.recharge.item.${i + 1}`}
-                className="bg-white rounded-xl border border-gray-100 p-4 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-black text-orange-600 text-base">
-                    ৳{req.amount.toString()}
-                  </span>
-                  <RechargeStatusBadge status={req.status} />
-                </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                  <div>
-                    <span className="text-gray-400">পেমেন্ট: </span>
-                    <span className="font-semibold text-gray-700">
-                      {METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod}
+          )}
+
+          {activeTab === "orders" && (
+            <div className="space-y-3">
+              {orders?.map((order, i) => (
+                <div
+                  key={order.id.toString()}
+                  data-ocid={`admin.order.item.${i + 1}`}
+                  className="bg-white rounded-xl border border-gray-100 p-3"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-gray-800 truncate">
+                        {order.product.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {order.gameId} • {formatDate(order.createdAt)}
+                      </p>
+                    </div>
+                    <span className="font-bold text-orange-600 text-sm ml-2">
+                      ৳ {order.totalPrice.toString()}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-gray-400">তারিখ: </span>
-                    <span className="font-semibold text-gray-700">
-                      {formatDate(req.createdAt)}
-                    </span>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className="text-[11px] text-gray-400">মেম্বার:</span>
+                    <MemberCodeBadge principalId={order.userId.toString()} />
                   </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-400">TrxID: </span>
-                    <span className="font-mono font-semibold text-gray-700">
-                      {req.transactionId}
-                    </span>
-                  </div>
-                  <div className="col-span-2 flex items-center gap-1.5">
-                    <span className="text-gray-400">মেম্বার: </span>
-                    <MemberCodeBadge principalId={req.user.toString()} />
-                  </div>
-                </div>
-                {req.status === RequestStatus.pending && (
-                  <div className="flex gap-2 pt-1">
-                    <Button
-                      data-ocid={`admin.recharge.confirm_button.${i + 1}`}
-                      size="sm"
-                      onClick={() => handleApprove(req.id)}
-                      className="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs h-8"
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        statusColors[order.status]
+                      }`}
                     >
-                      <CheckCircle2 size={13} className="mr-1" /> অনুমোদন
-                    </Button>
-                    <Button
-                      data-ocid={`admin.recharge.delete_button.${i + 1}`}
-                      size="sm"
-                      onClick={() => handleReject(req.id)}
-                      className="flex-1 bg-red-500 hover:bg-red-600 text-white text-xs h-8"
+                      {order.status}
+                    </span>
+                    <Select
+                      value={order.status}
+                      onValueChange={(v) =>
+                        handleStatusChange(order.id, v as OrderStatus)
+                      }
                     >
-                      <XCircle size={13} className="mr-1" /> বাতিল
-                    </Button>
+                      <SelectTrigger
+                        data-ocid={`admin.order.select.${i + 1}`}
+                        className="h-7 text-xs flex-1"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map((s) => (
+                          <SelectItem
+                            key={s.value}
+                            value={s.value}
+                            className="text-xs"
+                          >
+                            {s.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
+                </div>
+              ))}
+              {(!orders || orders.length === 0) && (
+                <div
+                  data-ocid="admin.orders.empty_state"
+                  className="text-center py-12 text-gray-400"
+                >
+                  <p className="text-sm">কোনো অর্ডার নেই</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "recharge" && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-semibold text-gray-700">
+                  {rechargeRequests?.length ?? 0} রিচার্জ রিকোয়েস্ট
+                </span>
               </div>
-            ))}
-          </TabsContent>
+              {(!rechargeRequests || rechargeRequests.length === 0) && (
+                <div
+                  data-ocid="admin.recharge.empty_state"
+                  className="text-center py-12 text-gray-400"
+                >
+                  <p className="text-sm">কোনো রিচার্জ রিকোয়েস্ট নেই</p>
+                </div>
+              )}
+              {rechargeRequests?.map((req, i) => (
+                <div
+                  key={req.id.toString()}
+                  data-ocid={`admin.recharge.item.${i + 1}`}
+                  className="bg-white rounded-xl border border-gray-100 p-4 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-orange-600 text-base">
+                      ৳{req.amount.toString()}
+                    </span>
+                    <RechargeStatusBadge status={req.status} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                    <div>
+                      <span className="text-gray-400">পেমেন্ট: </span>
+                      <span className="font-semibold text-gray-700">
+                        {METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">তারিখ: </span>
+                      <span className="font-semibold text-gray-700">
+                        {formatDate(req.createdAt)}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-400">TrxID: </span>
+                      <span className="font-mono font-semibold text-gray-700">
+                        {req.transactionId}
+                      </span>
+                    </div>
+                    <div className="col-span-2 flex items-center gap-1.5">
+                      <span className="text-gray-400">মেম্বার: </span>
+                      <MemberCodeBadge principalId={req.user.toString()} />
+                    </div>
+                  </div>
+                  {req.status === RequestStatus.pending && (
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        data-ocid={`admin.recharge.confirm_button.${i + 1}`}
+                        size="sm"
+                        onClick={() => handleApprove(req.id)}
+                        className="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs h-8"
+                      >
+                        <CheckCircle2 size={13} className="mr-1" /> অনুমোদন
+                      </Button>
+                      <Button
+                        data-ocid={`admin.recharge.delete_button.${i + 1}`}
+                        size="sm"
+                        onClick={() => handleReject(req.id)}
+                        className="flex-1 bg-red-500 hover:bg-red-600 text-white text-xs h-8"
+                      >
+                        <XCircle size={13} className="mr-1" /> বাতিল
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Members Tab -- Super Admin only */}
-          {isSuperAdmin && (
-            <TabsContent value="members" className="space-y-4">
+          {isSuperAdmin && activeTab === "members" && (
+            <div className="space-y-4">
               <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
                 <h3 className="font-bold text-sm text-gray-800 flex items-center gap-2">
                   <Users size={15} className="text-orange-500" />
@@ -1003,12 +1101,12 @@ export default function AdminPage() {
                 rechargeRequests={rechargeRequests}
                 setSubAdmin={setSubAdmin}
               />
-            </TabsContent>
+            </div>
           )}
 
           {/* Settings Tab -- Super Admin only */}
-          {isSuperAdmin && (
-            <TabsContent value="settings" className="space-y-4">
+          {isSuperAdmin && activeTab === "settings" && (
+            <div className="space-y-4">
               {/* Section A: Site Settings */}
               <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
                 <h3 className="font-bold text-sm text-gray-800 flex items-center gap-2">
@@ -1357,9 +1455,9 @@ export default function AdminPage() {
                   নমুনা ডেটা ইনিশিয়ালাইজ করুন
                 </Button>
               </div>
-            </TabsContent>
+            </div>
           )}
-        </Tabs>
+        </div>
       </div>
     </div>
   );
