@@ -1,4 +1,4 @@
-import { Home, Package, PlusCircle, User } from "lucide-react";
+import { Home, Package, Plus, User } from "lucide-react";
 import type { PageType } from "../App";
 
 interface BottomNavProps {
@@ -9,7 +9,12 @@ interface BottomNavProps {
 export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
   const items = [
     { id: "home" as PageType, icon: Home, label: "Home" },
-    { id: "addmoney" as PageType, icon: PlusCircle, label: "Add Money" },
+    {
+      id: "addmoney" as PageType,
+      icon: Plus,
+      label: "Add Money",
+      center: true,
+    },
     { id: "orders" as PageType, icon: Package, label: "My Orders" },
     { id: "profile" as PageType, icon: User, label: "Profile" },
   ];
@@ -19,9 +24,43 @@ export default function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
       data-ocid="bottom_nav"
       className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-50"
     >
-      <div className="flex items-center justify-around h-16">
+      <div className="flex items-end justify-around h-16 pb-1">
         {items.map((item) => {
           const isActive = currentPage === item.id;
+
+          if (item.center) {
+            return (
+              <button
+                type="button"
+                key={item.id}
+                data-ocid={`nav.${item.id}.link`}
+                onClick={() => onNavigate(item.id)}
+                className="flex flex-col items-center gap-0.5 -mt-5"
+              >
+                <div
+                  className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all ${
+                    isActive
+                      ? "bg-orange-500 scale-110"
+                      : "bg-orange-400 hover:bg-orange-500"
+                  }`}
+                >
+                  <item.icon
+                    size={26}
+                    className="text-white"
+                    strokeWidth={2.5}
+                  />
+                </div>
+                <span
+                  className={`text-[10px] font-medium mt-0.5 ${
+                    isActive ? "text-orange-500" : "text-gray-400"
+                  }`}
+                >
+                  {item.label}
+                </span>
+              </button>
+            );
+          }
+
           return (
             <button
               type="button"
