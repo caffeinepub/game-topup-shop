@@ -30,6 +30,9 @@ export interface OrderWithProduct {
   'totalPrice' : bigint,
   'product' : Product,
 }
+export type PaymentMethod = { 'nagad' : null } |
+  { 'bkash' : null } |
+  { 'rocket' : null };
 export interface Product {
   'id' : bigint,
   'name' : string,
@@ -49,6 +52,23 @@ export interface ProductInput {
   'category' : string,
   'price' : bigint,
 }
+export interface RechargeRequestInput {
+  'paymentMethod' : PaymentMethod,
+  'amount' : bigint,
+  'transactionId' : string,
+}
+export interface Request {
+  'id' : bigint,
+  'status' : RequestStatus,
+  'paymentMethod' : PaymentMethod,
+  'createdAt' : bigint,
+  'user' : Principal,
+  'amount' : bigint,
+  'transactionId' : string,
+}
+export type RequestStatus = { 'pending' : null } |
+  { 'approved' : null } |
+  { 'rejected' : null };
 export interface UserProfile { 'name' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
@@ -56,6 +76,7 @@ export type UserRole = { 'admin' : null } |
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addProduct' : ActorMethod<[ProductInput], bigint>,
+  'approveRechargeRequest' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'creditWallet' : ActorMethod<[Principal, bigint], undefined>,
   'deleteProduct' : ActorMethod<[bigint], undefined>,
@@ -67,13 +88,16 @@ export interface _SERVICE {
   'getMyOrders' : ActorMethod<[], Array<OrderWithProduct>>,
   'getProducts' : ActorMethod<[], Array<Product>>,
   'getProductsByCategory' : ActorMethod<[string], Array<Product>>,
+  'getRechargeRequests' : ActorMethod<[], Array<Request>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getWalletBalance' : ActorMethod<[], bigint>,
   'initializeSampleData' : ActorMethod<[], undefined>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'placeOrder' : ActorMethod<[CreateOrderInput], bigint>,
+  'rejectRechargeRequest' : ActorMethod<[bigint], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setAnnouncement' : ActorMethod<[string], undefined>,
+  'submitRechargeRequest' : ActorMethod<[RechargeRequestInput], bigint>,
   'updateOrderStatus' : ActorMethod<[bigint, OrderStatus], undefined>,
   'updateProduct' : ActorMethod<[bigint, ProductInput], undefined>,
 }

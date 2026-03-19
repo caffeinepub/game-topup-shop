@@ -50,15 +50,40 @@ export const OrderWithProduct = IDL.Record({
   'product' : Product,
 });
 export const UserProfile = IDL.Record({ 'name' : IDL.Text });
+export const RequestStatus = IDL.Variant({
+  'pending' : IDL.Null,
+  'approved' : IDL.Null,
+  'rejected' : IDL.Null,
+});
+export const PaymentMethod = IDL.Variant({
+  'nagad' : IDL.Null,
+  'bkash' : IDL.Null,
+  'rocket' : IDL.Null,
+});
+export const Request = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : RequestStatus,
+  'paymentMethod' : PaymentMethod,
+  'createdAt' : IDL.Int,
+  'user' : IDL.Principal,
+  'amount' : IDL.Int,
+  'transactionId' : IDL.Text,
+});
 export const CreateOrderInput = IDL.Record({
   'gameId' : IDL.Text,
   'productId' : IDL.Nat,
   'quantity' : IDL.Nat,
 });
+export const RechargeRequestInput = IDL.Record({
+  'paymentMethod' : PaymentMethod,
+  'amount' : IDL.Int,
+  'transactionId' : IDL.Text,
+});
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'addProduct' : IDL.Func([ProductInput], [IDL.Nat], []),
+  'approveRechargeRequest' : IDL.Func([IDL.Nat], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'creditWallet' : IDL.Func([IDL.Principal, IDL.Int], [], []),
   'deleteProduct' : IDL.Func([IDL.Nat], [], []),
@@ -70,6 +95,7 @@ export const idlService = IDL.Service({
   'getMyOrders' : IDL.Func([], [IDL.Vec(OrderWithProduct)], ['query']),
   'getProducts' : IDL.Func([], [IDL.Vec(Product)], ['query']),
   'getProductsByCategory' : IDL.Func([IDL.Text], [IDL.Vec(Product)], ['query']),
+  'getRechargeRequests' : IDL.Func([], [IDL.Vec(Request)], ['query']),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
       [IDL.Opt(UserProfile)],
@@ -79,8 +105,10 @@ export const idlService = IDL.Service({
   'initializeSampleData' : IDL.Func([], [], []),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'placeOrder' : IDL.Func([CreateOrderInput], [IDL.Nat], []),
+  'rejectRechargeRequest' : IDL.Func([IDL.Nat], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'setAnnouncement' : IDL.Func([IDL.Text], [], []),
+  'submitRechargeRequest' : IDL.Func([RechargeRequestInput], [IDL.Nat], []),
   'updateOrderStatus' : IDL.Func([IDL.Nat, OrderStatus], [], []),
   'updateProduct' : IDL.Func([IDL.Nat, ProductInput], [], []),
 });
@@ -130,15 +158,40 @@ export const idlFactory = ({ IDL }) => {
     'product' : Product,
   });
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
+  const RequestStatus = IDL.Variant({
+    'pending' : IDL.Null,
+    'approved' : IDL.Null,
+    'rejected' : IDL.Null,
+  });
+  const PaymentMethod = IDL.Variant({
+    'nagad' : IDL.Null,
+    'bkash' : IDL.Null,
+    'rocket' : IDL.Null,
+  });
+  const Request = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : RequestStatus,
+    'paymentMethod' : PaymentMethod,
+    'createdAt' : IDL.Int,
+    'user' : IDL.Principal,
+    'amount' : IDL.Int,
+    'transactionId' : IDL.Text,
+  });
   const CreateOrderInput = IDL.Record({
     'gameId' : IDL.Text,
     'productId' : IDL.Nat,
     'quantity' : IDL.Nat,
   });
+  const RechargeRequestInput = IDL.Record({
+    'paymentMethod' : PaymentMethod,
+    'amount' : IDL.Int,
+    'transactionId' : IDL.Text,
+  });
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'addProduct' : IDL.Func([ProductInput], [IDL.Nat], []),
+    'approveRechargeRequest' : IDL.Func([IDL.Nat], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'creditWallet' : IDL.Func([IDL.Principal, IDL.Int], [], []),
     'deleteProduct' : IDL.Func([IDL.Nat], [], []),
@@ -154,6 +207,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(Product)],
         ['query'],
       ),
+    'getRechargeRequests' : IDL.Func([], [IDL.Vec(Request)], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
@@ -163,8 +217,10 @@ export const idlFactory = ({ IDL }) => {
     'initializeSampleData' : IDL.Func([], [], []),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'placeOrder' : IDL.Func([CreateOrderInput], [IDL.Nat], []),
+    'rejectRechargeRequest' : IDL.Func([IDL.Nat], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'setAnnouncement' : IDL.Func([IDL.Text], [], []),
+    'submitRechargeRequest' : IDL.Func([RechargeRequestInput], [IDL.Nat], []),
     'updateOrderStatus' : IDL.Func([IDL.Nat, OrderStatus], [], []),
     'updateProduct' : IDL.Func([IDL.Nat, ProductInput], [], []),
   });

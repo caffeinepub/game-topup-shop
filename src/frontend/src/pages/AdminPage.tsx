@@ -20,18 +20,30 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Principal } from "@icp-sdk/core/principal";
-import { Edit3, Loader2, Plus, Settings, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  Edit3,
+  Loader2,
+  Plus,
+  Settings,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { OrderStatus } from "../backend.d";
+import { OrderStatus, RequestStatus } from "../backend.d";
 import type { Product, ProductInput } from "../backend.d";
 import {
   useAddProduct,
   useAllOrders,
+  useAllRechargeRequests,
+  useApproveRechargeRequest,
   useCreditWallet,
   useDeleteProduct,
   useInitializeSampleData,
   useProducts,
+  useRejectRechargeRequest,
   useSetAnnouncement,
   useUpdateOrderStatus,
   useUpdateProduct,
@@ -69,9 +81,38 @@ const statusColors: Record<OrderStatus, string> = {
   [OrderStatus.cancelled]: "bg-red-100 text-red-700",
 };
 
+const METHOD_LABEL: Record<string, string> = {
+  bkash: "বিকাশ",
+  nagad: "নগদ",
+  rocket: "রকেট",
+};
+
+function RechargeStatusBadge({ status }: { status: RequestStatus }) {
+  if (status === RequestStatus.pending) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+        <Clock size={11} /> অপেক্ষামান
+      </span>
+    );
+  }
+  if (status === RequestStatus.approved) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+        <CheckCircle2 size={11} /> অনুমোদিত
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+      <XCircle size={11} /> বাতিল
+    </span>
+  );
+}
+
 export default function AdminPage() {
   const { data: products } = useProducts();
   const { data: orders } = useAllOrders();
+  const { data: rechargeRequests } = useAllRechargeRequests();
   const { mutateAsync: addProduct, isPending: addingProduct } = useAddProduct();
   const { mutateAsync: updateProduct } = useUpdateProduct();
   const { mutateAsync: deleteProduct } = useDeleteProduct();
@@ -81,6 +122,8 @@ export default function AdminPage() {
   const { mutateAsync: initData, isPending: initializing } =
     useInitializeSampleData();
   const { mutateAsync: creditWallet, isPending: crediting } = useCreditWallet();
+  const { mutateAsync: approveRequest } = useApproveRechargeRequest();
+  const { mutateAsync: rejectRequest } = useRejectRechargeRequest();
 
   const [productForm, setProductForm] = useState<ProductInput>(emptyProduct);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -151,6 +194,24 @@ export default function AdminPage() {
     }
   };
 
+  const handleApprove = async (id: bigint) => {
+    try {
+      await approveRequest(id);
+      toast.success("রিচার্জ অনুমোদিত হয়েছে!");
+    } catch {
+      toast.error("Approval failed");
+    }
+  };
+
+  const handleReject = async (id: bigint) => {
+    try {
+      await rejectRequest(id);
+      toast.success("রিচার্জ বাতিল করা হয়েছে।");
+    } catch {
+      toast.error("Rejection failed");
+    }
+  };
+
   return (
     <div data-ocid="admin.page" className="min-h-screen bg-gray-50">
       <header className="bg-gray-900 text-white px-4 py-4 flex items-center gap-3">
@@ -164,16 +225,19 @@ export default function AdminPage() {
         <Tabs defaultValue="products">
           <TabsList
             data-ocid="admin.tab"
-            className="w-full mb-4 bg-white border"
+            className="w-full mb-4 bg-white border grid grid-cols-4"
           >
-            <TabsTrigger value="products" className="flex-1 text-xs">
+            <TabsTrigger value="products" className="text-xs">
               Products
             </TabsTrigger>
-            <TabsTrigger value="orders" className="flex-1 text-xs">
+            <TabsTrigger value="orders" className="text-xs">
               Orders
             </TabsTrigger>
-            <TabsTrigger value="settings" className="flex-1 text-xs">
+            <TabsTrigger value="settings" className="text-xs">
               Settings
+            </TabsTrigger>
+            <TabsTrigger value="recharge" className="text-xs">
+              Recharge
             </TabsTrigger>
           </TabsList>
 
@@ -529,6 +593,83 @@ export default function AdminPage() {
                 Initialize Sample Data
               </Button>
             </div>
+          </TabsContent>
+
+          {/* Recharge Tab */}
+          <TabsContent value="recharge" className="space-y-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-semibold text-gray-700">
+                {rechargeRequests?.length ?? 0} রিচার্জ রিকোয়েস্ট
+              </span>
+            </div>
+            {(!rechargeRequests || rechargeRequests.length === 0) && (
+              <div
+                data-ocid="admin.recharge.empty_state"
+                className="text-center py-12 text-gray-400"
+              >
+                <p className="text-sm">কোনো রিচার্জ রিকোয়েস্ট নেই</p>
+              </div>
+            )}
+            {rechargeRequests?.map((req, i) => (
+              <div
+                key={req.id.toString()}
+                data-ocid={`admin.recharge.item.${i + 1}`}
+                className="bg-white rounded-xl border border-gray-100 p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-black text-orange-600 text-base">
+                    ৳{req.amount.toString()}
+                  </span>
+                  <RechargeStatusBadge status={req.status} />
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <div>
+                    <span className="text-gray-400">পেমেন্ট: </span>
+                    <span className="font-semibold text-gray-700">
+                      {METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">তারিখ: </span>
+                    <span className="font-semibold text-gray-700">
+                      {formatDate(req.createdAt)}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-400">TrxID: </span>
+                    <span className="font-mono font-semibold text-gray-700">
+                      {req.transactionId}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-400">User: </span>
+                    <span className="font-mono text-gray-600 text-[11px]">
+                      {req.user.toString().slice(0, 8)}...
+                    </span>
+                  </div>
+                </div>
+                {req.status === RequestStatus.pending && (
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      data-ocid={`admin.recharge.confirm_button.${i + 1}`}
+                      size="sm"
+                      onClick={() => handleApprove(req.id)}
+                      className="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs h-8"
+                    >
+                      <CheckCircle2 size={13} className="mr-1" /> অনুমোদন
+                    </Button>
+                    <Button
+                      data-ocid={`admin.recharge.delete_button.${i + 1}`}
+                      size="sm"
+                      onClick={() => handleReject(req.id)}
+                      className="flex-1 bg-red-500 hover:bg-red-600 text-white text-xs h-8"
+                    >
+                      <XCircle size={13} className="mr-1" /> বাতিল
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
           </TabsContent>
         </Tabs>
       </div>

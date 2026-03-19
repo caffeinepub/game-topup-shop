@@ -10,7 +10,9 @@ import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
   // ----- Types -----
   module Product {
@@ -41,6 +43,21 @@ actor {
     };
   };
 
+  module RechargeRequest {
+    public type PaymentMethod = { #bkash; #nagad; #rocket };
+    public type RequestStatus = { #pending; #approved; #rejected };
+
+    public type Request = {
+      id : Nat;
+      user : Principal;
+      amount : Int;
+      paymentMethod : PaymentMethod;
+      transactionId : Text;
+      status : RequestStatus;
+      createdAt : Int;
+    };
+  };
+
   public type UserProfile = {
     name : Text;
   };
@@ -49,10 +66,12 @@ actor {
   let products = Map.empty<Nat, Product.Product>();
   let orders = Map.empty<Nat, Order.Order>();
   let wallets = Map.empty<Principal, Int>();
+  let rechargeRequests = Map.empty<Nat, RechargeRequest.Request>();
   let userProfiles = Map.empty<Principal, UserProfile>();
 
   var nextProductId = 1;
   var nextOrderId = 1;
+  var nextRechargeRequestId = 1;
   var announcement : Text = "";
 
   // Initialize the user system state
@@ -350,6 +369,101 @@ actor {
     wallets.add(user, currentBalance + amount);
   };
 
+  // ------ Recharge Requests -------
+  public type RechargeRequestInput = {
+    amount : Int;
+    paymentMethod : RechargeRequest.PaymentMethod;
+    transactionId : Text;
+  };
+
+  public query ({ caller }) func getRechargeRequests() : async [RechargeRequest.Request] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view recharge requests");
+    };
+
+    let allRequests = List.empty<RechargeRequest.Request>();
+
+    for ((_, request) in rechargeRequests.entries()) {
+      if (request.user == caller or AccessControl.isAdmin(accessControlState, caller)) {
+        allRequests.add(request);
+      };
+    };
+
+    allRequests.reverse().toArray();
+  };
+
+  public shared ({ caller }) func submitRechargeRequest(
+    input : RechargeRequestInput,
+  ) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can submit recharge requests");
+    };
+
+    let newRequest : RechargeRequest.Request = {
+      id = nextRechargeRequestId;
+      user = caller;
+      amount = input.amount;
+      paymentMethod = input.paymentMethod;
+      transactionId = input.transactionId;
+      status = #pending;
+      createdAt = Time.now();
+    };
+
+    rechargeRequests.add(nextRechargeRequestId, newRequest);
+    nextRechargeRequestId += 1;
+    newRequest.id;
+  };
+
+  public shared ({ caller }) func approveRechargeRequest(requestId : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can approve recharge requests");
+    };
+
+    switch (rechargeRequests.get(requestId)) {
+      case (null) { Runtime.trap("Recharge request not found") };
+      case (?request) {
+        let updatedRequest : RechargeRequest.Request = {
+          id = request.id;
+          user = request.user;
+          amount = request.amount;
+          paymentMethod = request.paymentMethod;
+          transactionId = request.transactionId;
+          status = #approved;
+          createdAt = request.createdAt;
+        };
+        rechargeRequests.add(requestId, updatedRequest);
+
+        let currentBalance = switch (wallets.get(request.user)) {
+          case (null) { 0 };
+          case (?balance) { balance };
+        };
+        wallets.add(request.user, currentBalance + request.amount);
+      };
+    };
+  };
+
+  public shared ({ caller }) func rejectRechargeRequest(requestId : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can reject recharge requests");
+    };
+
+    switch (rechargeRequests.get(requestId)) {
+      case (null) { Runtime.trap("Recharge request not found") };
+      case (?request) {
+        let updatedRequest : RechargeRequest.Request = {
+          id = request.id;
+          user = request.user;
+          amount = request.amount;
+          paymentMethod = request.paymentMethod;
+          transactionId = request.transactionId;
+          status = #rejected;
+          createdAt = request.createdAt;
+        };
+        rechargeRequests.add(requestId, updatedRequest);
+      };
+    };
+  };
+
   // ------ Announcement (Admin Only) -------
   public shared ({ caller }) func setAnnouncement(text : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
@@ -448,3 +562,4 @@ actor {
     ignore await addProduct(luckyBonus);
   };
 };
+

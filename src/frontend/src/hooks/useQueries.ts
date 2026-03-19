@@ -4,6 +4,7 @@ import type {
   CreateOrderInput,
   OrderStatus,
   ProductInput,
+  RechargeRequestInput,
   UserProfile,
 } from "../backend.d";
 import { useActor } from "./useActor";
@@ -237,6 +238,73 @@ export function useSaveProfile() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["userProfile"] });
+    },
+  });
+}
+
+export function useRechargeRequests() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["rechargeRequests"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getRechargeRequests();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAllRechargeRequests() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["rechargeRequests"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getRechargeRequests();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSubmitRechargeRequest() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: RechargeRequestInput) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.submitRechargeRequest(input);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rechargeRequests"] });
+    },
+  });
+}
+
+export function useApproveRechargeRequest() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (requestId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.approveRechargeRequest(requestId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rechargeRequests"] });
+      qc.invalidateQueries({ queryKey: ["walletBalance"] });
+    },
+  });
+}
+
+export function useRejectRechargeRequest() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (requestId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.rejectRechargeRequest(requestId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rechargeRequests"] });
     },
   });
 }

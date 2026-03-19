@@ -1,18 +1,23 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Copy, Wallet } from "lucide-react";
+import { CheckCircle2, Clock, Copy, Wallet, XCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { type PaymentMethod, RequestStatus } from "../backend.d";
 import AppHeader from "../components/AppHeader";
-import { useWalletBalance } from "../hooks/useQueries";
+import {
+  useRechargeRequests,
+  useSubmitRechargeRequest,
+  useWalletBalance,
+} from "../hooks/useQueries";
 
 const PRESET_AMOUNTS = [50, 100, 200, 500, 1000, 2000];
 
 const PAYMENT_METHODS = [
   {
-    id: "bkash",
+    id: "bkash" as PaymentMethod,
     label: "বিকাশ",
     color: "#E2136E",
     bg: "#fce4ef",
@@ -20,7 +25,7 @@ const PAYMENT_METHODS = [
     number: "01841956380",
   },
   {
-    id: "nagad",
+    id: "nagad" as PaymentMethod,
     label: "নগদ",
     color: "#F26522",
     bg: "#fff3e0",
@@ -28,7 +33,7 @@ const PAYMENT_METHODS = [
     number: "01841956380",
   },
   {
-    id: "rocket",
+    id: "rocket" as PaymentMethod,
     label: "রকেট",
     color: "#8A1C7C",
     bg: "#f3e5f5",
@@ -37,20 +42,62 @@ const PAYMENT_METHODS = [
   },
 ];
 
+const METHOD_LABEL: Record<string, string> = {
+  bkash: "বিকাশ",
+  nagad: "নগদ",
+  rocket: "রকেট",
+};
+
+function formatDate(nanoseconds: bigint) {
+  const ms = Number(nanoseconds / BigInt(1_000_000));
+  return new Date(ms).toLocaleDateString("bn-BD", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function StatusBadge({ status }: { status: RequestStatus }) {
+  if (status === RequestStatus.pending) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+        <Clock size={11} /> অপেক্ষামান
+      </span>
+    );
+  }
+  if (status === RequestStatus.approved) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+        <CheckCircle2 size={11} /> অনুমোদিত
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+      <XCircle size={11} /> বাতিল
+    </span>
+  );
+}
+
 export default function AddMoneyPage() {
   const { data: balance } = useWalletBalance();
+  const { data: history } = useRechargeRequests();
+  const { mutateAsync: submitRequest, isPending: isSubmitting } =
+    useSubmitRechargeRequest();
+
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState("");
-  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
+    null,
+  );
   const [transactionId, setTransactionId] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const finalAmount = customAmount
     ? Number.parseInt(customAmount)
     : selectedAmount;
   const activeMethod = PAYMENT_METHODS.find((m) => m.id === selectedMethod);
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!finalAmount || finalAmount < 1) {
       toast.error("অনুগ্রহ করে পরিমাণ নির্বাচন করুন");
       return;
@@ -63,15 +110,20 @@ export default function AddMoneyPage() {
       toast.error("ট্রানজেকশন আইডি দিন");
       return;
     }
-    setIsSubmitting(true);
-    setTimeout(() => {
-      toast.success("আপনার রিকোয়েস্ট পাঠানো হয়েছে! ২৪ ঘণ্টার মধ্যে ব্যালেন্স যোগ হবে।");
+    try {
+      await submitRequest({
+        paymentMethod: selectedMethod,
+        amount: BigInt(finalAmount),
+        transactionId: transactionId.trim(),
+      });
+      toast.success("রিকোয়েস্ট সফলভাবে পাঠানো হয়েছে!");
       setSelectedAmount(null);
       setCustomAmount("");
       setSelectedMethod(null);
       setTransactionId("");
-      setIsSubmitting(false);
-    }, 800);
+    } catch {
+      toast.error("রিকোয়েস্ট পাঠাতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।");
+    }
   }
 
   function copyNumber(num: string) {
@@ -304,9 +356,57 @@ export default function AddMoneyPage() {
           <ul className="text-xs text-orange-700 space-y-1 list-disc list-inside">
             <li>বিকাশ/নগদ/রকেটে পেমেন্ট করুন</li>
             <li>Transaction ID সঠিকভাবে দিন</li>
-            <li>২৪ ঘণ্টার মধ্যে ব্যালেন্স যোগ হবে</li>
+            <li>অ্যাডমিন অনুমোদনের পর ব্যালেন্স যোগ হবে</li>
             <li>সমস্যা হলে WhatsApp এ যোগাযোগ করুন</li>
           </ul>
+        </motion.div>
+
+        {/* Recharge History */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5"
+        >
+          <h2 className="font-bold text-gray-800 text-base mb-4">
+            📋 আমার রিচার্জ হিস্টোরি
+          </h2>
+          {!history || history.length === 0 ? (
+            <div
+              data-ocid="addmoney.history.empty_state"
+              className="text-center py-6 text-gray-400"
+            >
+              <p className="text-sm">কোনো রিচার্জ রিকোয়েস্ট নেই</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {history.map((req, i) => (
+                <div
+                  key={req.id.toString()}
+                  data-ocid={`addmoney.history.item.${i + 1}`}
+                  className="border border-gray-100 rounded-xl p-3 bg-gray-50"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-black text-orange-600 text-sm">
+                      ৳{req.amount.toString()}
+                    </span>
+                    <StatusBadge status={req.status} />
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span className="font-semibold text-gray-700">
+                      {METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod}
+                    </span>
+                    <span>•</span>
+                    <span className="font-mono truncate max-w-[100px]">
+                      {req.transactionId}
+                    </span>
+                    <span>•</span>
+                    <span>{formatDate(req.createdAt)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </motion.div>
       </div>
     </div>
