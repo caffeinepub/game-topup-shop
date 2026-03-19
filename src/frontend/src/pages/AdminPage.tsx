@@ -26,22 +26,26 @@ import {
   Edit3,
   Loader2,
   Plus,
+  Search,
   Settings,
   Trash2,
+  User,
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { OrderStatus, RequestStatus } from "../backend.d";
+import { OrderStatus, RequestStatus, UserRole } from "../backend.d";
 import type { Product, ProductInput } from "../backend.d";
 import {
   useAddProduct,
   useAllOrders,
   useAllRechargeRequests,
   useApproveRechargeRequest,
+  useAssignRole,
   useCreditWallet,
   useDeleteProduct,
   useInitializeSampleData,
+  useLookupMember,
   useProducts,
   useRejectRechargeRequest,
   useSetAnnouncement,
@@ -124,6 +128,8 @@ export default function AdminPage() {
   const { mutateAsync: creditWallet, isPending: crediting } = useCreditWallet();
   const { mutateAsync: approveRequest } = useApproveRechargeRequest();
   const { mutateAsync: rejectRequest } = useRejectRechargeRequest();
+  const { mutateAsync: lookupMember, isPending: lookingUp } = useLookupMember();
+  const { mutateAsync: assignRole, isPending: assigningRole } = useAssignRole();
 
   const [productForm, setProductForm] = useState<ProductInput>(emptyProduct);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -131,6 +137,15 @@ export default function AdminPage() {
   const [announcement, setAnnouncementText] = useState("");
   const [creditPrincipal, setCreditPrincipal] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
+
+  // Member lookup state
+  const [memberPrincipal, setMemberPrincipal] = useState("");
+  const [memberResult, setMemberResult] = useState<{
+    principalId: string;
+    profile: { name: string } | null;
+  } | null>(null);
+  const [memberError, setMemberError] = useState("");
+  const [newRole, setNewRole] = useState<UserRole>(UserRole.user);
 
   const handleProductSubmit = async () => {
     if (!productForm.name.trim()) {
@@ -212,6 +227,38 @@ export default function AdminPage() {
     }
   };
 
+  const handleMemberLookup = async () => {
+    setMemberError("");
+    setMemberResult(null);
+    if (!memberPrincipal.trim()) {
+      setMemberError("Principal ID লিখুন");
+      return;
+    }
+    try {
+      const principal = Principal.fromText(memberPrincipal.trim());
+      const result = await lookupMember(principal);
+      setMemberResult({
+        principalId: memberPrincipal.trim(),
+        profile: result.profile,
+      });
+    } catch {
+      setMemberError("ইনভ্যালিড Principal ID বা মেম্বার পাওয়া যায়নি");
+    }
+  };
+
+  const handleAssignRole = async () => {
+    if (!memberResult) return;
+    try {
+      await assignRole({
+        user: Principal.fromText(memberResult.principalId),
+        role: newRole,
+      });
+      toast.success("রোল আপডেট হয়েছে!");
+    } catch {
+      toast.error("রোল আপডেট ব্যর্থ হয়েছে");
+    }
+  };
+
   return (
     <div data-ocid="admin.page" className="min-h-screen bg-gray-50">
       <header className="bg-gray-900 text-white px-4 py-4 flex items-center gap-3">
@@ -225,19 +272,22 @@ export default function AdminPage() {
         <Tabs defaultValue="products">
           <TabsList
             data-ocid="admin.tab"
-            className="w-full mb-4 bg-white border grid grid-cols-4"
+            className="w-full mb-4 bg-white border grid grid-cols-5"
           >
-            <TabsTrigger value="products" className="text-xs">
+            <TabsTrigger value="products" className="text-[11px] px-1">
               Products
             </TabsTrigger>
-            <TabsTrigger value="orders" className="text-xs">
+            <TabsTrigger value="orders" className="text-[11px] px-1">
               Orders
             </TabsTrigger>
-            <TabsTrigger value="settings" className="text-xs">
-              Settings
-            </TabsTrigger>
-            <TabsTrigger value="recharge" className="text-xs">
+            <TabsTrigger value="recharge" className="text-[11px] px-1">
               Recharge
+            </TabsTrigger>
+            <TabsTrigger value="members" className="text-[11px] px-1">
+              Members
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="text-[11px] px-1">
+              Settings
             </TabsTrigger>
           </TabsList>
 
@@ -514,6 +564,195 @@ export default function AdminPage() {
             )}
           </TabsContent>
 
+          {/* Recharge Tab */}
+          <TabsContent value="recharge" className="space-y-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-semibold text-gray-700">
+                {rechargeRequests?.length ?? 0} রিচার্জ রিকোয়েস্ট
+              </span>
+            </div>
+            {(!rechargeRequests || rechargeRequests.length === 0) && (
+              <div
+                data-ocid="admin.recharge.empty_state"
+                className="text-center py-12 text-gray-400"
+              >
+                <p className="text-sm">কোনো রিচার্জ রিকোয়েস্ট নেই</p>
+              </div>
+            )}
+            {rechargeRequests?.map((req, i) => (
+              <div
+                key={req.id.toString()}
+                data-ocid={`admin.recharge.item.${i + 1}`}
+                className="bg-white rounded-xl border border-gray-100 p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-black text-orange-600 text-base">
+                    ৳{req.amount.toString()}
+                  </span>
+                  <RechargeStatusBadge status={req.status} />
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <div>
+                    <span className="text-gray-400">পেমেন্ট: </span>
+                    <span className="font-semibold text-gray-700">
+                      {METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">তারিখ: </span>
+                    <span className="font-semibold text-gray-700">
+                      {formatDate(req.createdAt)}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-400">TrxID: </span>
+                    <span className="font-mono font-semibold text-gray-700">
+                      {req.transactionId}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-400">User: </span>
+                    <span className="font-mono text-gray-600 text-[11px]">
+                      {req.user.toString().slice(0, 8)}...
+                    </span>
+                  </div>
+                </div>
+                {req.status === RequestStatus.pending && (
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      data-ocid={`admin.recharge.confirm_button.${i + 1}`}
+                      size="sm"
+                      onClick={() => handleApprove(req.id)}
+                      className="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs h-8"
+                    >
+                      <CheckCircle2 size={13} className="mr-1" /> অনুমোদন
+                    </Button>
+                    <Button
+                      data-ocid={`admin.recharge.delete_button.${i + 1}`}
+                      size="sm"
+                      onClick={() => handleReject(req.id)}
+                      className="flex-1 bg-red-500 hover:bg-red-600 text-white text-xs h-8"
+                    >
+                      <XCircle size={13} className="mr-1" /> বাতিল
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </TabsContent>
+
+          {/* Members Tab */}
+          <TabsContent value="members" className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+              <h3 className="font-bold text-sm text-gray-800 flex items-center gap-2">
+                <User size={15} className="text-orange-500" />
+                মেম্বার সার্চ
+              </h3>
+              <p className="text-xs text-gray-500">
+                ইউজারের Principal ID দিয়ে তার প্রোফাইল ও তথ্য দেখুন।
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  data-ocid="admin.member.input"
+                  placeholder="Principal ID (যেমন: xxxxx-xxxxx-...)"
+                  value={memberPrincipal}
+                  onChange={(e) => {
+                    setMemberPrincipal(e.target.value);
+                    setMemberError("");
+                    setMemberResult(null);
+                  }}
+                  className="text-xs"
+                />
+                <Button
+                  data-ocid="admin.member.search_button"
+                  onClick={handleMemberLookup}
+                  disabled={lookingUp}
+                  className="bg-orange-500 hover:bg-orange-600 text-white shrink-0"
+                  size="sm"
+                >
+                  {lookingUp ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Search size={14} />
+                  )}
+                </Button>
+              </div>
+              {memberError && (
+                <p className="text-xs text-red-500">{memberError}</p>
+              )}
+            </div>
+
+            {memberResult && (
+              <div
+                data-ocid="admin.member.result"
+                className="bg-white rounded-xl border border-gray-100 p-4 space-y-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                    <User size={18} className="text-orange-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm text-gray-800">
+                      {memberResult.profile?.name || "নাম নেই"}
+                    </p>
+                    <p className="text-[11px] text-gray-400 font-mono truncate">
+                      {memberResult.principalId}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 text-xs">
+                  <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                    <span className="text-gray-500">প্রোফাইল</span>
+                    <span className="font-semibold text-gray-700">
+                      {memberResult.profile ? "সেট আছে" : "সেট নেই"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Role assignment */}
+                <div className="border-t pt-3 space-y-2">
+                  <p className="text-xs font-semibold text-gray-700">
+                    রোল পরিবর্তন করুন
+                  </p>
+                  <div className="flex gap-2">
+                    <Select
+                      value={newRole}
+                      onValueChange={(v) => setNewRole(v as UserRole)}
+                    >
+                      <SelectTrigger className="h-8 text-xs flex-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UserRole.user} className="text-xs">
+                          সাধারণ ইউজার
+                        </SelectItem>
+                        <SelectItem value={UserRole.admin} className="text-xs">
+                          অ্যাডমিন
+                        </SelectItem>
+                        <SelectItem value={UserRole.guest} className="text-xs">
+                          গেস্ট
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      data-ocid="admin.member.assign_role_button"
+                      size="sm"
+                      onClick={handleAssignRole}
+                      disabled={assigningRole}
+                      className="bg-orange-500 hover:bg-orange-600 text-white text-xs h-8"
+                    >
+                      {assigningRole && (
+                        <Loader2 size={12} className="animate-spin mr-1" />
+                      )}
+                      আপডেট
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-4">
             {/* Announcement */}
@@ -593,83 +832,6 @@ export default function AdminPage() {
                 Initialize Sample Data
               </Button>
             </div>
-          </TabsContent>
-
-          {/* Recharge Tab */}
-          <TabsContent value="recharge" className="space-y-3">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-semibold text-gray-700">
-                {rechargeRequests?.length ?? 0} রিচার্জ রিকোয়েস্ট
-              </span>
-            </div>
-            {(!rechargeRequests || rechargeRequests.length === 0) && (
-              <div
-                data-ocid="admin.recharge.empty_state"
-                className="text-center py-12 text-gray-400"
-              >
-                <p className="text-sm">কোনো রিচার্জ রিকোয়েস্ট নেই</p>
-              </div>
-            )}
-            {rechargeRequests?.map((req, i) => (
-              <div
-                key={req.id.toString()}
-                data-ocid={`admin.recharge.item.${i + 1}`}
-                className="bg-white rounded-xl border border-gray-100 p-4 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-black text-orange-600 text-base">
-                    ৳{req.amount.toString()}
-                  </span>
-                  <RechargeStatusBadge status={req.status} />
-                </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                  <div>
-                    <span className="text-gray-400">পেমেন্ট: </span>
-                    <span className="font-semibold text-gray-700">
-                      {METHOD_LABEL[req.paymentMethod] ?? req.paymentMethod}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">তারিখ: </span>
-                    <span className="font-semibold text-gray-700">
-                      {formatDate(req.createdAt)}
-                    </span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-400">TrxID: </span>
-                    <span className="font-mono font-semibold text-gray-700">
-                      {req.transactionId}
-                    </span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-400">User: </span>
-                    <span className="font-mono text-gray-600 text-[11px]">
-                      {req.user.toString().slice(0, 8)}...
-                    </span>
-                  </div>
-                </div>
-                {req.status === RequestStatus.pending && (
-                  <div className="flex gap-2 pt-1">
-                    <Button
-                      data-ocid={`admin.recharge.confirm_button.${i + 1}`}
-                      size="sm"
-                      onClick={() => handleApprove(req.id)}
-                      className="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs h-8"
-                    >
-                      <CheckCircle2 size={13} className="mr-1" /> অনুমোদন
-                    </Button>
-                    <Button
-                      data-ocid={`admin.recharge.delete_button.${i + 1}`}
-                      size="sm"
-                      onClick={() => handleReject(req.id)}
-                      className="flex-1 bg-red-500 hover:bg-red-600 text-white text-xs h-8"
-                    >
-                      <XCircle size={13} className="mr-1" /> বাতিল
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
           </TabsContent>
         </Tabs>
       </div>

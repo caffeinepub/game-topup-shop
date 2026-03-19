@@ -308,3 +308,27 @@ export function useRejectRechargeRequest() {
     },
   });
 }
+
+export function useLookupMember() {
+  const { actor } = useActor();
+  return useMutation({
+    mutationFn: async (principal: Principal) => {
+      if (!actor) throw new Error("Not connected");
+      const profile = await actor.getUserProfile(principal);
+      return { profile };
+    },
+  });
+}
+
+export function useAssignRole() {
+  const { actor } = useActor();
+  return useMutation({
+    mutationFn: async ({
+      user,
+      role,
+    }: { user: Principal; role: import("../backend.d").UserRole }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.assignCallerUserRole(user, role);
+    },
+  });
+}
