@@ -20,7 +20,9 @@ interface ProfilePageProps {
   onNavigate: (page: PageType) => void;
 }
 
-export default function ProfilePage({ onNavigate }: ProfilePageProps) {
+export default function ProfilePage({
+  onNavigate: _onNavigate,
+}: ProfilePageProps) {
   const { identity, login, clear } = useInternetIdentity();
   const isLoggedIn = !!identity;
   const { data: profile } = useUserProfile();
@@ -179,7 +181,9 @@ export default function ProfilePage({ onNavigate }: ProfilePageProps) {
         {isAdmin && (
           <Button
             data-ocid="profile.admin.button"
-            onClick={() => onNavigate("admin")}
+            onClick={() => {
+              window.location.href = "/admin";
+            }}
             className="w-full bg-gray-800 hover:bg-gray-900 text-white font-bold flex items-center gap-2"
           >
             <Settings size={16} />
