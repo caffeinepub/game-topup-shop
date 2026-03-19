@@ -20,8 +20,8 @@ interface ProfilePageProps {
 }
 
 export default function ProfilePage({ onNavigate }: ProfilePageProps) {
-  const { identity, loginStatus, login, clear } = useInternetIdentity();
-  const isLoggedIn = loginStatus === "success" && identity;
+  const { identity, login, clear } = useInternetIdentity();
+  const isLoggedIn = !!identity;
   const { data: profile } = useUserProfile();
   const { data: isAdmin } = useIsAdmin();
   const { mutateAsync: saveProfile, isPending } = useSaveProfile();
